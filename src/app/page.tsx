@@ -1,0 +1,163 @@
+'use client';
+
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { useAppStore } from '@/store';
+import { api } from '@/lib/api';
+import LoginPage from '@/components/auth/LoginPage';
+import OverviewView from '@/components/app/OverviewView';
+import AccountsView from '@/components/app/AccountsView';
+import GoalsView from '@/components/app/GoalsView';
+import CalculatorView from '@/components/app/CalculatorView';
+import SettingsView from '@/components/app/SettingsView';
+
+type Tab = 'overview' | 'accounts' | 'goals' | 'calculator' | 'settings';
+
+const tabs: { key: Tab; label: string; icon: string }[] = [
+  { key: 'overview', label: 'Oversigt', icon: '\u2302' },
+  { key: 'accounts', label: 'Konti', icon: '\u2630' },
+  { key: 'goals', label: 'Mål', icon: '\u2605' },
+  { key: 'calculator', label: 'Regner', icon: '\u2795' },
+  { key: 'settings', label: 'Indstill.', icon: '\u2699' },
+];
+
+export default function Home() {
+  const { token, user, activeTab, setActiveTab, setToken, setUser, accounts, setAccounts } = useAppStore();
+  const [authChecked, setAuthChecked] = useState(false);
+  // Compute theme CSS variables
+  const themeVars = useMemo(() => {
+    const accent = user?.themeAccentColor || '#10b981';
+    const bg = user?.themeBgColor || '#0a0a0a';
+    const bgRGB = hexToRgb(bg);
+    const accentRGB = hexToRgb(accent);
+    const dark = isBgDark(bg);
+    return {
+      '--accent': accent,
+      '--accent-fg': dark ? '#ffffff' : '#000000',
+      '--accent-rgb': `${accentRGB.r}, ${accentRGB.g}, ${accentRGB.b}`,
+      '--bg': bg,
+      '--bg-rgb': `${bgRGB.r}, ${bgRGB.g}, ${bgRGB.b}`,
+      '--fg': dark ? '#f1f5f9' : '#0f172a',
+      '--fg-muted': dark ? '#94a3b8' : '#64748b',
+      '--card': dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+      '--border': dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+    } as React.CSSProperties;
+  }, [user?.themeAccentColor, user?.themeBgColor]);
+
+  const isDark = useMemo(() => isBgDark(user?.themeBgColor || '#0a0a0a'), [user?.themeBgColor]);
+
+  // Check auth on mount
+  const swRegistered = useRef(false);
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (token) {
+        try {
+          const data = await api.auth.me();
+          setUser(data.user);
+        } catch {
+          setToken(null);
+        }
+      }
+      setAuthChecked(true);
+    };
+    checkAuth();
+
+    // Register service worker for PWA
+    if (!swRegistered.current && 'serviceWorker' in navigator) {
+      swRegistered.current = true;
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
+
+  // Load accounts when user is set
+  useEffect(() => {
+    if (user && token) {
+      api.accounts.list().then((data) => setAccounts(data.accounts)).catch(console.error);
+    }
+  }, [user, token]);
+
+  if (!authChecked) {
+    return (
+      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: '#0a0a0a' }}>
+        <div className="animate-pulse text-xl" style={{ color: '#94a3b8' }}>
+          monizzz
+        </div>
+      </div>
+    );
+  }
+
+  if (!token || !user) {
+    return <LoginPage />;
+  }
+
+  const renderView = () => {
+    switch (activeTab) {
+      case 'overview': return <OverviewView />;
+      case 'accounts': return <AccountsView />;
+      case 'goals': return <GoalsView />;
+      case 'calculator': return <CalculatorView />;
+      case 'settings': return <SettingsView />;
+    }
+  };
+
+  return (
+    <div
+      className="flex flex-col h-dvh overflow-hidden select-none"
+      style={{
+        backgroundColor: 'var(--bg)',
+        color: 'var(--fg)',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, sans-serif',
+        ...themeVars,
+      }}
+    >
+      {/* Content area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {renderView()}
+      </div>
+
+      {/* Bottom tab bar */}
+      <nav
+        className="shrink-0 flex items-stretch border-t"
+        style={{
+          backgroundColor: 'var(--card)',
+          borderColor: 'var(--border)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          minHeight: '60px',
+        }}
+      >
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 active:scale-[0.95] transition-all duration-150"
+              style={{
+                color: isActive ? 'var(--accent)' : 'var(--fg-muted)',
+              }}
+            >
+              <span className="text-xl leading-none">{tab.icon}</span>
+              <span className="text-[10px] font-medium leading-none">{tab.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : { r: 0, g: 0, b: 0 };
+}
+
+function isBgDark(hex: string): boolean {
+  const { r, g, b } = hexToRgb(hex);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance < 0.5;
+}

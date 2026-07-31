@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(cuid())
+  username         String   @unique
+  passwordHash     String
+  themeAccentColor String   @default("#6366f1")
+  themeBgColor     String   @default("#0f0f0f")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  accounts          Account[]
+  autoTransferRules AutoTransferRule[]
+}
+
+model Account {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  type      String   @default("standard") // standard, opsparing, monizz, donation, custom, goal_savings
+  balance   Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions      Transaction[]
+  goal              Goal?
+  sourceTransfers   AutoTransferRule[] @relation("SourceAccount")
+  destTransfers     AutoTransferRule[] @relation("DestAccount")
+}
+
+model Goal {
+  id           String  @id @default(cuid())
+  accountId    String  @unique
+  targetAmount Float
+  createdAt    DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  accountId   String
+  amount      Float
+  type        String   @default("manual") // manual, automatic
+  note        String?
+  transferId  String?  // Links source and dest of a transfer
+  createdAt   DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model AutoTransferRule {
+  id                String   @id @default(cuid())
+  userId            String
+  name              String
+  amount            Float
+  dayOfMonth        Int      @default(1)
+  sourceAccountId   String?
+  destAccountId     String?
+  lastRunAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source  Account? @relation("SourceAccount", fields: [sourceAccountId], references: [id], onDelete: SetNull)
+  dest    Account? @relation("DestAccount", fields: [destAccountId], references: [id], onDelete: SetNull)
+}
