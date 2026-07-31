@@ -46,7 +46,10 @@ export default function Home() {
 
   const isDark = useMemo(() => isBgDark(user?.themeBgColor || '#0a0a0a'), [user?.themeBgColor]);
 
-  // Keep the browser/PWA status bar color in sync with the user's chosen theme
+  // Keep the browser/PWA status bar in sync with the user's chosen theme. This also mirrors
+  // themeVars onto :root so <body>'s background (set in globals.css) matches too — otherwise
+  // body stays on its default dark color and shows through as a black bar behind the notch/
+  // status bar area, since the themed background was only ever applied to a nested div.
   useEffect(() => {
     const bg = user?.themeBgColor || '#0a0a0a';
     let meta = document.querySelector('meta[name="theme-color"]');
@@ -56,7 +59,12 @@ export default function Home() {
       document.head.appendChild(meta);
     }
     meta.setAttribute('content', bg);
-  }, [user?.themeBgColor]);
+
+    const root = document.documentElement.style;
+    Object.entries(themeVars).forEach(([key, value]) => {
+      root.setProperty(key, value as string);
+    });
+  }, [themeVars, user?.themeBgColor]);
 
   // Check auth on mount
   const swRegistered = useRef(false);
