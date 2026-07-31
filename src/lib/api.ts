@@ -55,7 +55,7 @@ export const api = {
   },
   settings: {
     get: () => fetch(`${BASE}/api/settings`, { headers: getHeaders() }).then((r) => handleResponse<{ user: any }>(r)),
-    update: (data: { themeAccentColor?: string; themeBgColor?: string }) =>
+    update: (data: { themeAccentColor?: string; themeBgColor?: string; greetingStyle?: string }) =>
       fetch(`${BASE}/api/settings`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(data) }).then((r) => handleResponse<{ user: any }>(r)),
   },
   autoRules: {

@@ -27,9 +27,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="da" suppressHydrationWarning>
-      <head>
-        <link rel="apple-touch-icon" href="/icon-192.png" />
-      </head>
       <body className="antialiased">
         {children}
       </body>

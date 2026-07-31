@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     const fullUser = await db.user.findUnique({
       where: { id: user.userId },
-      select: { id: true, username: true, themeAccentColor: true, themeBgColor: true },
+      select: { id: true, username: true, themeAccentColor: true, themeBgColor: true, greetingStyle: true },
     });
 
     return NextResponse.json({ user: fullUser });
@@ -28,15 +28,16 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Ikke logget ind' }, { status: 401 });
     }
 
-    const { themeAccentColor, themeBgColor } = await request.json();
+    const { themeAccentColor, themeBgColor, greetingStyle } = await request.json();
 
     const updatedUser = await db.user.update({
       where: { id: user.userId },
       data: {
         ...(themeAccentColor && { themeAccentColor }),
         ...(themeBgColor && { themeBgColor }),
+        ...(greetingStyle && { greetingStyle }),
       },
-      select: { id: true, username: true, themeAccentColor: true, themeBgColor: true },
+      select: { id: true, username: true, themeAccentColor: true, themeBgColor: true, greetingStyle: true },
     });
 
     return NextResponse.json({ user: updatedUser });

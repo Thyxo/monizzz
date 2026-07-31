@@ -11,6 +11,8 @@ export default function SettingsView() {
   const { user, setUser, logout } = useAppStore();
   const [accentColor, setAccentColor] = useState(user?.themeAccentColor || '#10b981');
   const [bgColor, setBgColor] = useState(user?.themeBgColor || '#0a0a0a');
+  const [greetingStyle, setGreetingStyle] = useState(user?.greetingStyle || 'Hej, {navn}');
+  const [savingGreeting, setSavingGreeting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [rules, setRules] = useState<any[]>([]);
@@ -52,6 +54,18 @@ export default function SettingsView() {
       alert(err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveGreeting = async () => {
+    setSavingGreeting(true);
+    try {
+      const data = await api.settings.update({ greetingStyle });
+      setUser(data.user);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSavingGreeting(false);
     }
   };
 
@@ -121,6 +135,17 @@ export default function SettingsView() {
       setCronStatus(`Fejl: ${err.message}`);
     }
   };
+
+  const greetingPresets = [
+    'Hej, {navn}',
+    'Godmorgen, {navn}',
+    'Goddag, {navn}',
+    'Halløj, {navn}',
+    'Yo {navn}!',
+    'Kære {navn}',
+    'Hvad så, {navn}?',
+    'Velkommen tilbage, {navn}',
+  ];
 
   const colorPresets = [
     { accent: '#10b981', bg: '#0a0a0a', label: 'Emerald Night' },
@@ -210,6 +235,46 @@ export default function SettingsView() {
           style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
         >
           {saving ? 'Gemmer...' : 'Gem tema'}
+        </button>
+      </div>
+
+      {/* Greeting */}
+      <div className="mb-8">
+        <h3 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--fg-muted)' }}>
+          Hilsen
+        </h3>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {greetingPresets.map((preset) => (
+            <button
+              key={preset}
+              onClick={() => setGreetingStyle(preset)}
+              className="rounded-xl py-2 px-3 text-left text-sm active:scale-[0.98] transition-transform"
+              style={{
+                backgroundColor: 'var(--card)',
+                border: '2px solid',
+                borderColor: greetingStyle === preset ? 'var(--accent)' : 'var(--border)',
+                color: 'var(--fg)',
+              }}
+            >
+              {preset.replace('{navn}', user?.username || 'dig')}
+            </button>
+          ))}
+        </div>
+        <input
+          type="text"
+          value={greetingStyle}
+          onChange={(e) => setGreetingStyle(e.target.value)}
+          placeholder="Egen hilsen, brug {navn} for dit brugernavn"
+          className="w-full px-4 py-3 rounded-xl text-base outline-none mb-3"
+          style={inputStyle}
+        />
+        <button
+          onClick={saveGreeting}
+          disabled={savingGreeting}
+          className="w-full py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
+          style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
+        >
+          {savingGreeting ? 'Gemmer...' : 'Gem hilsen'}
         </button>
       </div>
 

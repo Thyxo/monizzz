@@ -76,7 +76,7 @@ export default function OverviewView() {
         }}
       >
         <p className="text-sm font-medium" style={{ color: 'var(--fg-muted)' }}>
-          Hej, {user?.username}
+          {(user?.greetingStyle || 'Hej, {navn}').replace('{navn}', user?.username || '')}
         </p>
         <h2 className="text-3xl font-bold mt-1 tracking-tight" style={{ color: 'var(--fg)' }}>
           {formatAmount(totalBalance)}

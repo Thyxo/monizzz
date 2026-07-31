@@ -9,6 +9,7 @@ interface AppState {
     username: string;
     themeAccentColor: string;
     themeBgColor: string;
+    greetingStyle: string;
   } | null;
   activeTab: Tab;
   selectedAccountId: string | null;

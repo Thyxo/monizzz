@@ -13,6 +13,7 @@ model User {
   passwordHash     String
   themeAccentColor String   @default("#6366f1")
   themeBgColor     String   @default("#0f0f0f")
+  greetingStyle    String   @default("Hej, {navn}")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
