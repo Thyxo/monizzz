@@ -141,7 +141,7 @@ export default function Home() {
         style={{
           backgroundColor: 'var(--card)',
           borderColor: 'var(--border)',
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 6px)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
           minHeight: '64px',
           boxShadow: '0 -8px 24px -12px rgba(0,0,0,0.35)',
         }}
