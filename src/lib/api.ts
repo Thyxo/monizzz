@@ -1,4 +1,4 @@
-const BASE = '';
+const BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 function getHeaders(): HeadersInit {
   const token = localStorage.getItem('monizzz_token');

@@ -1,9 +1,20 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret) {
+      const authHeader = request.headers.get('authorization');
+      const headerSecret = request.headers.get('x-cron-secret');
+      const bearerSecret = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+      if (bearerSecret !== cronSecret && headerSecret !== cronSecret) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
+
     const now = new Date();
     const currentDay = now.getDate();
     const currentMonth = now.getMonth();
