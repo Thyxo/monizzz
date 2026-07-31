@@ -7,6 +7,22 @@ import { api } from '@/lib/api';
 import { formatAmount, formatAmountShort, formatDate } from '@/lib/format';
 import SelectField from './SelectField';
 
+function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl pt-3 px-6 pb-6 max-h-[85vh] overflow-y-auto"
+        style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', boxShadow: '0 -12px 40px -12px rgba(0,0,0,0.5)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 rounded-full mx-auto mb-4 sm:hidden" style={{ backgroundColor: 'var(--border)' }} />
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function AccountsView() {
   const { selectedAccountId, setSelectedAccountId } = useAppStore();
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -141,21 +157,6 @@ export default function AccountsView() {
       setActionLoading(false);
     }
   };
-
-  // Modal overlay
-  const Modal = ({ children, onClose }: { children: React.ReactNode; onClose: () => void }) => (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl pt-3 px-6 pb-6 max-h-[85vh] overflow-y-auto"
-        style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', boxShadow: '0 -12px 40px -12px rgba(0,0,0,0.5)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="w-10 h-1 rounded-full mx-auto mb-4 sm:hidden" style={{ backgroundColor: 'var(--border)' }} />
-        {children}
-      </div>
-    </div>
-  );
 
   const inputStyle: React.CSSProperties = {
     backgroundColor: 'var(--bg)',
