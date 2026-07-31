@@ -46,6 +46,18 @@ export default function Home() {
 
   const isDark = useMemo(() => isBgDark(user?.themeBgColor || '#0a0a0a'), [user?.themeBgColor]);
 
+  // Keep the browser/PWA status bar color in sync with the user's chosen theme
+  useEffect(() => {
+    const bg = user?.themeBgColor || '#0a0a0a';
+    let meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'theme-color');
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', bg);
+  }, [user?.themeBgColor]);
+
   // Check auth on mount
   const swRegistered = useRef(false);
   useEffect(() => {
