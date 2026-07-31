@@ -1,4 +1,4 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 
 function getHeaders(): HeadersInit {
   const token = localStorage.getItem('monizzz_token');
@@ -14,6 +14,14 @@ async function handleResponse<T>(res: Response): Promise<T> {
     window.location.reload();
     throw new Error('Unauthorized');
   }
+
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    const preview = text.replace(/\s+/g, ' ').slice(0, 120);
+    throw new Error(`API svarer ikke med JSON (${res.status} ${res.statusText}) fra ${res.url}. Svar: ${preview}`);
+  }
+
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Unknown error');
   return data as T;
