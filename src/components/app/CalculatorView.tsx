@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { api } from '@/lib/api';
+import SelectField from './SelectField';
 
 export default function CalculatorView() {
   const { accounts } = useAppStore();
@@ -112,6 +114,7 @@ export default function CalculatorView() {
     backgroundColor: 'var(--card)',
     color: 'var(--fg)',
     border: '1px solid var(--border)',
+    boxShadow: '0 2px 8px -5px rgba(0,0,0,0.35)',
   };
 
   const opBtnBase: React.CSSProperties = {
@@ -141,10 +144,11 @@ export default function CalculatorView() {
       <div className="px-4 pb-3">
         <button
           onClick={() => setShowSend(true)}
-          className="w-full py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
+          className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
           style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
         >
-          Send til konto →
+          Send til konto
+          <ArrowRight size={15} />
         </button>
       </div>
 
@@ -181,12 +185,13 @@ export default function CalculatorView() {
       {/* Send to account modal */}
       {showSend && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowSend(false)}>
-          <div className="absolute inset-0 bg-black/60" />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div
-            className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6"
-            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+            className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl pt-3 px-6 pb-6"
+            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', boxShadow: '0 -12px 40px -12px rgba(0,0,0,0.5)' }}
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="w-10 h-1 rounded-full mx-auto mb-4 sm:hidden" style={{ backgroundColor: 'var(--border)' }} />
             <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Send til konto</h3>
             <p className="text-2xl font-bold mb-4" style={{ color: 'var(--accent)' }}>{display} kr</p>
 
@@ -213,17 +218,17 @@ export default function CalculatorView() {
               </button>
             </div>
 
-            <select
+            <SelectField
               value={sendAccountId}
               onChange={(e) => setSendAccountId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-base outline-none appearance-none mb-3"
+              className="mb-3"
               style={{ backgroundColor: 'var(--bg)', color: 'var(--fg)', border: '1px solid var(--border)' }}
             >
               <option value="">Vælg konto...</option>
               {allAccounts.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
-            </select>
+            </SelectField>
 
             <input
               type="text"

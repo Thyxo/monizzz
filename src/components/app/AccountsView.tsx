@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { Plus, X, ArrowLeftRight, ChevronLeft } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { api } from '@/lib/api';
 import { formatAmount, formatAmountShort, formatDate } from '@/lib/format';
+import SelectField from './SelectField';
 
 export default function AccountsView() {
   const { selectedAccountId, setSelectedAccountId } = useAppStore();
@@ -143,12 +145,13 @@ export default function AccountsView() {
   // Modal overlay
   const Modal = ({ children, onClose }: { children: React.ReactNode; onClose: () => void }) => (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60" />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 max-h-[85vh] overflow-y-auto"
-        style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+        className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl pt-3 px-6 pb-6 max-h-[85vh] overflow-y-auto"
+        style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', boxShadow: '0 -12px 40px -12px rgba(0,0,0,0.5)' }}
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="w-10 h-1 rounded-full mx-auto mb-4 sm:hidden" style={{ backgroundColor: 'var(--border)' }} />
         {children}
       </div>
     </div>
@@ -176,10 +179,11 @@ export default function AccountsView() {
         <div className="px-4 pt-6 pb-4">
           <button
             onClick={() => { setSelectedAccountId(null); setTransactions([]); }}
-            className="flex items-center gap-2 mb-4 text-sm"
+            className="flex items-center gap-1 mb-4 text-sm -ml-1"
             style={{ color: 'var(--fg-muted)' }}
           >
-            ← Tilbage
+            <ChevronLeft size={18} />
+            Tilbage
           </button>
           <h2 className="text-xl font-bold" style={{ color: 'var(--fg)' }}>{currentAccount.name}</h2>
           <p className="text-2xl font-bold mt-1" style={{ color: currentAccount.balance >= 0 ? 'var(--accent)' : '#ef4444' }}>
@@ -202,17 +206,18 @@ export default function AccountsView() {
             </button>
             <button
               onClick={() => setShowTransfer(true)}
-              className="flex-1 py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
               style={{ backgroundColor: 'rgba(148,163,184,0.15)', color: 'var(--fg)' }}
             >
+              <ArrowLeftRight size={15} />
               Overfør
             </button>
             <button
               onClick={() => setShowDeleteConfirm(currentAccount.id)}
-              className="w-11 h-11 rounded-xl flex items-center justify-center text-sm active:scale-[0.98] transition-transform"
+              className="w-11 h-11 rounded-xl flex items-center justify-center active:scale-[0.98] transition-transform"
               style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
             >
-              ✕
+              <X size={18} strokeWidth={2.5} />
             </button>
           </div>
         </div>
@@ -318,10 +323,9 @@ export default function AccountsView() {
               <div>
                 <p className="text-xs mb-1" style={{ color: 'var(--fg-muted)' }}>Fra: {currentAccount.name}</p>
               </div>
-              <select
+              <SelectField
                 value={transferDest}
                 onChange={(e) => setTransferDest(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-base outline-none appearance-none"
                 style={inputStyle}
               >
                 <option value="">Vælg modtagerkonto...</option>
@@ -332,7 +336,7 @@ export default function AccountsView() {
                       {a.name} ({formatAmount(a.balance)})
                     </option>
                   ))}
-              </select>
+              </SelectField>
               <input
                 type="text"
                 inputMode="decimal"
@@ -406,20 +410,20 @@ export default function AccountsView() {
         <h2 className="text-xl font-bold" style={{ color: 'var(--fg)' }}>Konti</h2>
         <button
           onClick={() => setShowCreateAccount(true)}
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-xl active:scale-[0.95] transition-transform"
+          className="w-10 h-10 rounded-xl flex items-center justify-center active:scale-[0.95] transition-transform"
           style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
         >
-          +
+          <Plus size={20} strokeWidth={2.5} />
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {accounts.map((account) => (
           <button
             key={account.id}
             onClick={() => setSelectedAccountId(account.id)}
             className="w-full flex items-center justify-between p-4 rounded-2xl text-left transition-all duration-150 active:scale-[0.98]"
-            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', boxShadow: '0 2px 10px -6px rgba(0,0,0,0.3)' }}
           >
             <div>
               <p className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>{account.name}</p>
@@ -448,10 +452,9 @@ export default function AccountsView() {
               style={inputStyle}
               autoFocus
             />
-            <select
+            <SelectField
               value={newAccountType}
               onChange={(e) => setNewAccountType(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-base outline-none appearance-none"
               style={inputStyle}
             >
               <option value="custom">Standard konto</option>
@@ -459,7 +462,7 @@ export default function AccountsView() {
               <option value="monizz">Monizz</option>
               <option value="donation">Donation</option>
               <option value="goal_savings">Min egen opsparing (mål)</option>
-            </select>
+            </SelectField>
             <input
               type="text"
               inputMode="decimal"

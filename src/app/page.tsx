@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
+import { Home as HomeIcon, WalletCards, Target, Calculator as CalculatorIcon, Settings as SettingsIcon, type LucideIcon } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { api } from '@/lib/api';
 import LoginPage from '@/components/auth/LoginPage';
@@ -12,12 +13,12 @@ import SettingsView from '@/components/app/SettingsView';
 
 type Tab = 'overview' | 'accounts' | 'goals' | 'calculator' | 'settings';
 
-const tabs: { key: Tab; label: string; icon: string }[] = [
-  { key: 'overview', label: 'Oversigt', icon: '\u2302' },
-  { key: 'accounts', label: 'Konti', icon: '\u2630' },
-  { key: 'goals', label: 'Mål', icon: '\u2605' },
-  { key: 'calculator', label: 'Regner', icon: '\u2795' },
-  { key: 'settings', label: 'Indstill.', icon: '\u2699' },
+const tabs: { key: Tab; label: string; icon: LucideIcon }[] = [
+  { key: 'overview', label: 'Oversigt', icon: HomeIcon },
+  { key: 'accounts', label: 'Konti', icon: WalletCards },
+  { key: 'goals', label: 'Mål', icon: Target },
+  { key: 'calculator', label: 'Regner', icon: CalculatorIcon },
+  { key: 'settings', label: 'Indstill.', icon: SettingsIcon },
 ];
 
 export default function Home() {
@@ -116,26 +117,29 @@ export default function Home() {
 
       {/* Bottom tab bar */}
       <nav
-        className="shrink-0 flex items-stretch border-t"
+        className="shrink-0 flex items-stretch gap-1 border-t px-2 pt-1.5"
         style={{
           backgroundColor: 'var(--card)',
           borderColor: 'var(--border)',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-          minHeight: '60px',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 6px)',
+          minHeight: '64px',
+          boxShadow: '0 -8px 24px -12px rgba(0,0,0,0.35)',
         }}
       >
         {tabs.map((tab) => {
           const isActive = activeTab === tab.key;
+          const Icon = tab.icon;
           return (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 active:scale-[0.95] transition-all duration-150"
+              className="flex-1 flex flex-col items-center justify-center py-1.5 gap-1 rounded-xl active:scale-[0.95] transition-all duration-150"
               style={{
                 color: isActive ? 'var(--accent)' : 'var(--fg-muted)',
+                backgroundColor: isActive ? 'rgba(var(--accent-rgb), 0.12)' : 'transparent',
               }}
             >
-              <span className="text-xl leading-none">{tab.icon}</span>
+              <Icon size={20} strokeWidth={isActive ? 2.4 : 2} />
               <span className="text-[10px] font-medium leading-none">{tab.label}</span>
             </button>
           );

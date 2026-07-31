@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* Default theme tokens (used before a logged-in user's saved theme is applied, e.g. on the login screen) */
+:root {
+  --accent: #10b981;
+  --accent-fg: #ffffff;
+  --accent-rgb: 16, 185, 129;
+  --bg: #0a0a0a;
+  --bg-rgb: 10, 10, 10;
+  --fg: #f1f5f9;
+  --fg-muted: #94a3b8;
+  --card: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
+}
+
 /* Reset defaults */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -17,6 +30,8 @@ html, body {
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
 }
 
 /* Remove scroll bounce globally */

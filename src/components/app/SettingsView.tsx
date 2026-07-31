@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { Plus, Trash2, LogOut, PlayCircle } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { api } from '@/lib/api';
 import { formatAmount } from '@/lib/format';
+import SelectField from './SelectField';
 
 export default function SettingsView() {
   const { user, setUser, logout } = useAppStore();
@@ -219,10 +221,10 @@ export default function SettingsView() {
           </h3>
           <button
             onClick={() => setShowNewRule(true)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-sm active:scale-[0.95] transition-transform"
+            className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-[0.95] transition-transform"
             style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
           >
-            +
+            <Plus size={16} strokeWidth={2.5} />
           </button>
         </div>
 
@@ -230,7 +232,7 @@ export default function SettingsView() {
           <div
             key={rule.id}
             className="p-4 rounded-2xl mb-2"
-            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', boxShadow: '0 2px 10px -6px rgba(0,0,0,0.3)' }}
           >
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -241,39 +243,39 @@ export default function SettingsView() {
               </div>
               <button
                 onClick={() => handleDeleteRule(rule.id)}
-                className="text-xs px-2 py-1 rounded-lg"
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                 style={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' }}
               >
-                Slet
+                <Trash2 size={15} />
               </button>
             </div>
 
             <div className="space-y-2">
-              <select
+              <SelectField
                 value={rule.sourceAccountId || ''}
                 onChange={(e) => handleUpdateRule({ ...rule, sourceAccountId: e.target.value || null })}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none"
+                className="!py-2 !text-sm"
                 style={inputStyle}
               >
                 <option value="">Ingen kilde</option>
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>{a.name} ({formatAmount(a.balance)})</option>
                 ))}
-              </select>
+              </SelectField>
               <div className="flex items-center justify-center">
                 <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>→</span>
               </div>
-              <select
+              <SelectField
                 value={rule.destAccountId || ''}
                 onChange={(e) => handleUpdateRule({ ...rule, destAccountId: e.target.value || null })}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none"
+                className="!py-2 !text-sm"
                 style={inputStyle}
               >
                 <option value="">Ud af systemet (fx donation)</option>
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>{a.name} ({formatAmount(a.balance)})</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
           </div>
         ))}
@@ -288,9 +290,10 @@ export default function SettingsView() {
         {rules.length > 0 && (
           <button
             onClick={runCronManually}
-            className="w-full mt-3 py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
+            className="w-full mt-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
             style={{ backgroundColor: 'rgba(168,85,247,0.15)', color: '#a855f7' }}
           >
+            <PlayCircle size={16} />
             Kør manuelle posteringer nu
           </button>
         )}
@@ -302,12 +305,13 @@ export default function SettingsView() {
       {/* New rule modal */}
       {showNewRule && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowNewRule(false)}>
-          <div className="absolute inset-0 bg-black/60" />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div
-            className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 max-h-[85vh] overflow-y-auto"
-            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+            className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl pt-3 px-6 pb-6 max-h-[85vh] overflow-y-auto"
+            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', boxShadow: '0 -12px 40px -12px rgba(0,0,0,0.5)' }}
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="w-10 h-1 rounded-full mx-auto mb-4 sm:hidden" style={{ backgroundColor: 'var(--border)' }} />
             <h3 className="text-lg font-bold mb-4" style={{ color: 'var(--fg)' }}>Ny automatisk regel</h3>
             <div className="space-y-3">
               <input
@@ -338,28 +342,26 @@ export default function SettingsView() {
                 className="w-full px-4 py-3 rounded-xl text-base outline-none"
                 style={inputStyle}
               />
-              <select
+              <SelectField
                 value={newRuleSource}
                 onChange={(e) => setNewRuleSource(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-base outline-none appearance-none"
                 style={inputStyle}
               >
                 <option value="">Ingen kilde-konto</option>
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>{a.name}</option>
                 ))}
-              </select>
-              <select
+              </SelectField>
+              <SelectField
                 value={newRuleDest}
                 onChange={(e) => setNewRuleDest(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-base outline-none appearance-none"
                 style={inputStyle}
               >
                 <option value="">Ud af systemet (fx donation)</option>
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>{a.name}</option>
                 ))}
-              </select>
+              </SelectField>
               <button
                 onClick={handleCreateRule}
                 disabled={ruleLoading || !newRuleName || !newRuleAmount}
@@ -390,9 +392,10 @@ export default function SettingsView() {
         </p>
         <button
           onClick={logout}
-          className="w-full mt-4 py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
+          className="w-full mt-4 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
           style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
         >
+          <LogOut size={15} />
           Log ud
         </button>
       </div>

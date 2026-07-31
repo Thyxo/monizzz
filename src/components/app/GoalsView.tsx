@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Target } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatAmount } from '@/lib/format';
 
@@ -60,7 +61,7 @@ export default function GoalsView() {
   if (goalAccounts.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center px-4">
-        <div className="text-6xl mb-4 opacity-30">★</div>
+        <Target size={56} className="mb-4 opacity-30" style={{ color: 'var(--fg)' }} />
         <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Ingen mål endnu</h2>
         <p className="text-sm text-center" style={{ color: 'var(--fg-muted)' }}>
           Opret en "Min egen opsparing"-konto under Konti for at starte et sparemål.
@@ -92,6 +93,7 @@ export default function GoalsView() {
                 style={{
                   backgroundColor: 'rgba(255,255,255,0.05)',
                   border: '2px solid rgba(255,255,255,0.1)',
+                  boxShadow: '0 8px 30px -10px rgba(0,0,0,0.4)',
                 }}
               >
                 {/* Glass body */}

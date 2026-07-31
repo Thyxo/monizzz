@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Wallet } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { api } from '@/lib/api';
 
@@ -33,6 +34,15 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: 'var(--bg)' }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{
+              background: `linear-gradient(135deg, rgba(var(--accent-rgb), 0.25), rgba(var(--accent-rgb), 0.08))`,
+              border: '1px solid var(--border)',
+            }}
+          >
+            <Wallet size={28} style={{ color: 'var(--accent)' }} />
+          </div>
           <h1 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--accent)' }}>
             monizzz
           </h1>
