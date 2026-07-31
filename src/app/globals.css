@@ -13,11 +13,14 @@
   --border: rgba(255, 255, 255, 0.08);
 }
 
-/* Reset defaults */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* Reset defaults, kept inside Tailwind's base layer so utility classes (padding, margin, etc.)
+   still win the cascade instead of being overridden by this unlayered rule. */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 html, body {

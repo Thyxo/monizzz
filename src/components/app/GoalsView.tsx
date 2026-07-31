@@ -72,7 +72,7 @@ export default function GoalsView() {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 pt-6 pb-4" style={{ overscrollBehavior: 'contain' }}>
-      <h2 className="text-xl font-bold mb-6" style={{ color: 'var(--fg)' }}>Mit mål</h2>
+      <h2 className="text-2xl font-bold mb-6 tracking-tight" style={{ color: 'var(--fg)' }}>Mit mål</h2>
 
       <div className="space-y-8">
         {goalAccounts.map((account) => {

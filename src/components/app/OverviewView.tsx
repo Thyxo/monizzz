@@ -105,7 +105,7 @@ export default function OverviewView() {
                 <Icon size={20} strokeWidth={2.25} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm truncate" style={{ color: 'var(--fg)' }}>
+                <p className="font-semibold text-base truncate" style={{ color: 'var(--fg)' }}>
                   {account.name}
                 </p>
                 <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
@@ -117,7 +117,7 @@ export default function OverviewView() {
                     : 'Konto'}
                 </p>
               </div>
-              <p className="font-bold text-sm" style={{ color: account.balance >= 0 ? 'var(--fg)' : '#ef4444' }}>
+              <p className="font-bold text-base" style={{ color: account.balance >= 0 ? 'var(--fg)' : '#ef4444' }}>
                 {formatAmount(account.balance)}
               </p>
             </button>

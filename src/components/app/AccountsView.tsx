@@ -185,7 +185,7 @@ export default function AccountsView() {
             <ChevronLeft size={18} />
             Tilbage
           </button>
-          <h2 className="text-xl font-bold" style={{ color: 'var(--fg)' }}>{currentAccount.name}</h2>
+          <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--fg)' }}>{currentAccount.name}</h2>
           <p className="text-2xl font-bold mt-1" style={{ color: currentAccount.balance >= 0 ? 'var(--accent)' : '#ef4444' }}>
             {formatAmount(currentAccount.balance)}
           </p>
@@ -407,7 +407,7 @@ export default function AccountsView() {
   return (
     <div className="flex-1 overflow-y-auto px-4 pt-6 pb-4" style={{ overscrollBehavior: 'contain' }}>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold" style={{ color: 'var(--fg)' }}>Konti</h2>
+        <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--fg)' }}>Konti</h2>
         <button
           onClick={() => setShowCreateAccount(true)}
           className="w-10 h-10 rounded-xl flex items-center justify-center active:scale-[0.95] transition-transform"
@@ -426,12 +426,12 @@ export default function AccountsView() {
             style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', boxShadow: '0 2px 10px -6px rgba(0,0,0,0.3)' }}
           >
             <div>
-              <p className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>{account.name}</p>
+              <p className="font-semibold text-base" style={{ color: 'var(--fg)' }}>{account.name}</p>
               <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
                 {account.type === 'goal_savings' ? 'Mål-konto' : account.type.charAt(0).toUpperCase() + account.type.slice(1)}
               </p>
             </div>
-            <p className="font-bold text-sm" style={{ color: account.balance >= 0 ? 'var(--fg)' : '#ef4444' }}>
+            <p className="font-bold text-base" style={{ color: account.balance >= 0 ? 'var(--fg)' : '#ef4444' }}>
               {formatAmount(account.balance)}
             </p>
           </button>
