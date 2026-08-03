@@ -124,8 +124,20 @@ export default function CalculatorView() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Display */}
+      {/* Send to account button */}
       <div className="px-4 pt-6 pb-2">
+        <button
+          onClick={() => setShowSend(true)}
+          className="w-full h-[84px] rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
+          style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
+        >
+          Send til konto
+          <ArrowRight size={15} />
+        </button>
+      </div>
+
+      {/* Display */}
+      <div className="px-4 pt-4 pb-2">
         {previous && operator && (
           <p className="text-sm text-right truncate" style={{ color: 'var(--fg-muted)' }}>
             {previous.replace('.', ',')} {operator}
@@ -138,18 +150,6 @@ export default function CalculatorView() {
         >
           {display}
         </div>
-      </div>
-
-      {/* Send to account button */}
-      <div className="px-4 pb-3">
-        <button
-          onClick={() => setShowSend(true)}
-          className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
-          style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
-        >
-          Send til konto
-          <ArrowRight size={15} />
-        </button>
       </div>
 
       {/* Calculator grid */}

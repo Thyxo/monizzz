@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, LogOut, PlayCircle } from 'lucide-react';
+import { Plus, Trash2, LogOut, PlayCircle, ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { api } from '@/lib/api';
 import { formatAmount } from '@/lib/format';
@@ -25,6 +25,8 @@ export default function SettingsView() {
   const [newRuleDest, setNewRuleDest] = useState('');
   const [ruleLoading, setRuleLoading] = useState(false);
   const [cronStatus, setCronStatus] = useState<string | null>(null);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [greetingOpen, setGreetingOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -182,100 +184,126 @@ export default function SettingsView() {
 
       {/* Theme */}
       <div className="mb-8">
-        <h3 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--fg-muted)' }}>
-          Tema
-        </h3>
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          {colorPresets.map((preset) => (
-            <button
-              key={preset.label}
-              onClick={() => { setAccentColor(preset.accent); setBgColor(preset.bg); }}
-              className="rounded-xl p-2 text-center text-xs active:scale-[0.95] transition-transform"
-              style={{
-                backgroundColor: preset.bg,
-                border: '2px solid',
-                borderColor: accentColor === preset.accent && bgColor === preset.bg
-                  ? preset.accent
-                  : 'var(--border)',
-                color: preset.accent,
-              }}
-            >
-              <div
-                className="w-6 h-6 rounded-full mx-auto mb-1"
-                style={{ backgroundColor: preset.accent }}
-              />
-              {preset.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-3 mb-3">
-          <label className="text-sm w-20" style={{ color: 'var(--fg-muted)' }}>Accent</label>
-          <input
-            type="color"
-            value={accentColor}
-            onChange={(e) => setAccentColor(e.target.value)}
-            className="w-10 h-10 rounded-lg cursor-pointer border-0"
-          />
-          <span className="text-xs font-mono" style={{ color: 'var(--fg-muted)' }}>{accentColor}</span>
-        </div>
-        <div className="flex items-center gap-3 mb-4">
-          <label className="text-sm w-20" style={{ color: 'var(--fg-muted)' }}>Baggrund</label>
-          <input
-            type="color"
-            value={bgColor}
-            onChange={(e) => setBgColor(e.target.value)}
-            className="w-10 h-10 rounded-lg cursor-pointer border-0"
-          />
-          <span className="text-xs font-mono" style={{ color: 'var(--fg-muted)' }}>{bgColor}</span>
-        </div>
         <button
-          onClick={saveTheme}
-          disabled={saving}
-          className="w-full py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
-          style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
+          onClick={() => setThemeOpen(!themeOpen)}
+          className="w-full flex items-center justify-between bg-transparent border-0 p-0 cursor-pointer"
         >
-          {saving ? 'Gemmer...' : 'Gem tema'}
+          <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>
+            Tema
+          </h3>
+          <ChevronDown
+            size={16}
+            style={{ color: 'var(--fg-muted)', transform: themeOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+          />
         </button>
+        {themeOpen && (
+          <div className="mt-3">
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {colorPresets.map((preset) => (
+                <button
+                  key={preset.label}
+                  onClick={() => { setAccentColor(preset.accent); setBgColor(preset.bg); }}
+                  className="rounded-xl p-2 text-center text-xs active:scale-[0.95] transition-transform"
+                  style={{
+                    backgroundColor: preset.bg,
+                    border: '2px solid',
+                    borderColor: accentColor === preset.accent && bgColor === preset.bg
+                      ? preset.accent
+                      : 'var(--border)',
+                    color: preset.accent,
+                  }}
+                >
+                  <div
+                    className="w-6 h-6 rounded-full mx-auto mb-1"
+                    style={{ backgroundColor: preset.accent }}
+                  />
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 mb-3">
+              <label className="text-sm w-20" style={{ color: 'var(--fg-muted)' }}>Accent</label>
+              <input
+                type="color"
+                value={accentColor}
+                onChange={(e) => setAccentColor(e.target.value)}
+                className="w-10 h-10 rounded-lg cursor-pointer border-0"
+              />
+              <span className="text-xs font-mono" style={{ color: 'var(--fg-muted)' }}>{accentColor}</span>
+            </div>
+            <div className="flex items-center gap-3 mb-4">
+              <label className="text-sm w-20" style={{ color: 'var(--fg-muted)' }}>Baggrund</label>
+              <input
+                type="color"
+                value={bgColor}
+                onChange={(e) => setBgColor(e.target.value)}
+                className="w-10 h-10 rounded-lg cursor-pointer border-0"
+              />
+              <span className="text-xs font-mono" style={{ color: 'var(--fg-muted)' }}>{bgColor}</span>
+            </div>
+            <button
+              onClick={saveTheme}
+              disabled={saving}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
+              style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
+            >
+              {saving ? 'Gemmer...' : 'Gem tema'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Greeting */}
       <div className="mb-8">
-        <h3 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--fg-muted)' }}>
-          Hilsen
-        </h3>
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          {greetingPresets.map((preset) => (
-            <button
-              key={preset}
-              onClick={() => setGreetingStyle(preset)}
-              className="rounded-xl py-2 px-3 text-left text-sm active:scale-[0.98] transition-transform"
-              style={{
-                backgroundColor: 'var(--card)',
-                border: '2px solid',
-                borderColor: greetingStyle === preset ? 'var(--accent)' : 'var(--border)',
-                color: 'var(--fg)',
-              }}
-            >
-              {preset.replace('{navn}', user?.username || 'dig')}
-            </button>
-          ))}
-        </div>
-        <input
-          type="text"
-          value={greetingStyle}
-          onChange={(e) => setGreetingStyle(e.target.value)}
-          placeholder="Egen hilsen, brug {navn} for dit brugernavn"
-          className="w-full px-4 py-3 rounded-xl text-base outline-none mb-3"
-          style={inputStyle}
-        />
         <button
-          onClick={saveGreeting}
-          disabled={savingGreeting}
-          className="w-full py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
-          style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
+          onClick={() => setGreetingOpen(!greetingOpen)}
+          className="w-full flex items-center justify-between bg-transparent border-0 p-0 cursor-pointer"
         >
-          {savingGreeting ? 'Gemmer...' : 'Gem hilsen'}
+          <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>
+            Hilsen
+          </h3>
+          <ChevronDown
+            size={16}
+            style={{ color: 'var(--fg-muted)', transform: greetingOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+          />
         </button>
+        {greetingOpen && (
+          <div className="mt-3">
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {greetingPresets.map((preset) => (
+                <button
+                  key={preset}
+                  onClick={() => setGreetingStyle(preset)}
+                  className="rounded-xl py-2 px-3 text-left text-sm active:scale-[0.98] transition-transform"
+                  style={{
+                    backgroundColor: 'var(--card)',
+                    border: '2px solid',
+                    borderColor: greetingStyle === preset ? 'var(--accent)' : 'var(--border)',
+                    color: 'var(--fg)',
+                  }}
+                >
+                  {preset.replace('{navn}', user?.username || 'dig')}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              value={greetingStyle}
+              onChange={(e) => setGreetingStyle(e.target.value)}
+              placeholder="Egen hilsen, brug {navn} for dit brugernavn"
+              className="w-full px-4 py-3 rounded-xl text-base outline-none mb-3"
+              style={inputStyle}
+            />
+            <button
+              onClick={saveGreeting}
+              disabled={savingGreeting}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
+              style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
+            >
+              {savingGreeting ? 'Gemmer...' : 'Gem hilsen'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Auto rules */}
