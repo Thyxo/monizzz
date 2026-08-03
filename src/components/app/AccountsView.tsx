@@ -406,17 +406,24 @@ export default function AccountsView() {
 
   // Account list view
   return (
-    <div className="flex-1 overflow-y-auto px-4 pt-6 pb-4" style={{ overscrollBehavior: 'contain' }}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--fg)' }}>Konti</h2>
-        <button
-          onClick={() => setShowCreateAccount(true)}
-          className="w-10 h-10 rounded-xl flex items-center justify-center active:scale-[0.95] transition-transform"
-          style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
-        >
-          <Plus size={20} strokeWidth={2.5} />
-        </button>
+    <div className="relative flex-1 overflow-y-auto px-4 pt-6 pb-4" style={{ overscrollBehavior: 'contain' }}>
+      <div className="text-center mb-4">
+        <h2 className="text-[30px] font-bold tracking-tight" style={{ color: 'var(--fg)' }}>Konti</h2>
       </div>
+
+      <button
+        onClick={() => setShowCreateAccount(true)}
+        className="fixed right-5 bottom-[100px] w-[52px] h-[52px] rounded-2xl flex items-center justify-center active:scale-[0.95] transition-transform z-[5]"
+        style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)', boxShadow: '0 8px 20px -6px rgba(0,0,0,0.5)' }}
+      >
+        <Plus size={22} strokeWidth={2.5} />
+      </button>
+
+      {accounts.length === 0 && (
+        <p className="text-sm text-center py-10" style={{ color: 'var(--fg-muted)' }}>
+          Ingen konti endnu. Tryk + for at oprette en.
+        </p>
+      )}
 
       <div className="space-y-2.5">
         {accounts.map((account) => (

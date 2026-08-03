@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { TrendingUp, Coins, Heart, Target, Wallet } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { api } from '@/lib/api';
 import { formatAmount } from '@/lib/format';
+import AccountIcon from './AccountIcon';
 
 export default function OverviewView() {
   const { user, setActiveTab, setSelectedAccountId } = useAppStore();
@@ -48,16 +49,6 @@ export default function OverviewView() {
     }
   };
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'opsparing': return TrendingUp;
-      case 'monizz': return Coins;
-      case 'donation': return Heart;
-      case 'goal_savings': return Target;
-      default: return Wallet;
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center" style={{ color: 'var(--fg-muted)' }}>
@@ -68,17 +59,11 @@ export default function OverviewView() {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 pt-6 pb-4" style={{ overscrollBehavior: 'contain' }}>
-      <div
-        className="mb-6 p-5 rounded-3xl"
-        style={{
-          background: `linear-gradient(135deg, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.03))`,
-          border: '1px solid var(--border)',
-        }}
-      >
+      <div className="py-5 text-center">
         <p className="text-sm font-medium" style={{ color: 'var(--fg-muted)' }}>
           {(user?.greetingStyle || 'Hej, {navn}').replace('{navn}', user?.username || '')}
         </p>
-        <h2 className="text-3xl font-bold mt-1 tracking-tight" style={{ color: 'var(--fg)' }}>
+        <h2 className="text-[34px] font-bold mt-1.5 tracking-tight" style={{ color: 'var(--fg)' }}>
           {formatAmount(totalBalance)}
         </h2>
         <p className="text-xs mt-1" style={{ color: 'var(--fg-muted)' }}>Samlet balance</p>
@@ -86,7 +71,6 @@ export default function OverviewView() {
 
       <div className="space-y-2.5">
         {accounts.map((account) => {
-          const Icon = getIcon(account.type);
           return (
             <button
               key={account.id}
@@ -102,7 +86,7 @@ export default function OverviewView() {
                 className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
                 style={{ backgroundColor: getIconBg(account.type), color: getIconColor(account.type) }}
               >
-                <Icon size={20} strokeWidth={2.25} />
+                <AccountIcon type={account.type} color={getIconColor(account.type)} size={20} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-base truncate" style={{ color: 'var(--fg)' }}>

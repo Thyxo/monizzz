@@ -153,33 +153,33 @@ export default function CalculatorView() {
       </div>
 
       {/* Calculator grid */}
-      <div className="flex-1 grid grid-cols-4 gap-2 p-4 pt-0" style={{ maxBlockSize: 'fit-content' }}>
-        <button onClick={clear} className="h-14 rounded-xl text-lg font-semibold active:scale-[0.95] transition-transform" style={opBtnBase}>C</button>
-        <button onClick={backspace} className="h-14 rounded-xl text-lg font-semibold active:scale-[0.95] transition-transform" style={opBtnBase}>⌫</button>
+      <div className="flex-1 grid grid-cols-4 gap-2.5 p-4 pt-0" style={{ gridAutoRows: '78px', maxBlockSize: 'fit-content' }}>
+        <button onClick={clear} className="rounded-[18px] text-2xl font-semibold active:scale-[0.95] transition-transform" style={opBtnBase}>C</button>
+        <button onClick={backspace} className="rounded-[18px] text-2xl font-semibold active:scale-[0.95] transition-transform" style={opBtnBase}>⌫</button>
         <button onClick={() => {
           const num = parseFloat(display.replace(',', '.'));
           if (!isNaN(num)) setDisplay(String(-num).replace('.', ','));
-        }} className="h-14 rounded-xl text-lg font-semibold active:scale-[0.95] transition-transform" style={opBtnBase}>±</button>
-        <button onClick={() => calc('÷')} className="h-14 rounded-xl text-2xl font-semibold active:scale-[0.95] transition-transform" style={{...opBtnBase, color: 'var(--accent)'}}>÷</button>
+        }} className="rounded-[18px] text-2xl font-semibold active:scale-[0.95] transition-transform" style={opBtnBase}>±</button>
+        <button onClick={() => calc('÷')} className="rounded-[18px] text-[26px] font-semibold active:scale-[0.95] transition-transform" style={{...opBtnBase, color: 'var(--accent)'}}>÷</button>
 
         {[7,8,9].map(n => (
-          <button key={n} onClick={() => input(String(n))} className="h-14 rounded-xl text-xl font-semibold active:scale-[0.95] transition-transform" style={btnBase}>{n}</button>
+          <button key={n} onClick={() => input(String(n))} className="rounded-[18px] text-[26px] font-semibold active:scale-[0.95] transition-transform" style={btnBase}>{n}</button>
         ))}
-        <button onClick={() => calc('×')} className="h-14 rounded-xl text-2xl font-semibold active:scale-[0.95] transition-transform" style={{...opBtnBase, color: 'var(--accent)'}}>×</button>
+        <button onClick={() => calc('×')} className="rounded-[18px] text-[26px] font-semibold active:scale-[0.95] transition-transform" style={{...opBtnBase, color: 'var(--accent)'}}>×</button>
 
         {[4,5,6].map(n => (
-          <button key={n} onClick={() => input(String(n))} className="h-14 rounded-xl text-xl font-semibold active:scale-[0.95] transition-transform" style={btnBase}>{n}</button>
+          <button key={n} onClick={() => input(String(n))} className="rounded-[18px] text-[26px] font-semibold active:scale-[0.95] transition-transform" style={btnBase}>{n}</button>
         ))}
-        <button onClick={() => calc('-')} className="h-14 rounded-xl text-2xl font-semibold active:scale-[0.95] transition-transform" style={{...opBtnBase, color: 'var(--accent)'}}>−</button>
+        <button onClick={() => calc('-')} className="rounded-[18px] text-[26px] font-semibold active:scale-[0.95] transition-transform" style={{...opBtnBase, color: 'var(--accent)'}}>−</button>
 
         {[1,2,3].map(n => (
-          <button key={n} onClick={() => input(String(n))} className="h-14 rounded-xl text-xl font-semibold active:scale-[0.95] transition-transform" style={btnBase}>{n}</button>
+          <button key={n} onClick={() => input(String(n))} className="rounded-[18px] text-[26px] font-semibold active:scale-[0.95] transition-transform" style={btnBase}>{n}</button>
         ))}
-        <button onClick={() => calc('+')} className="h-14 rounded-xl text-2xl font-semibold active:scale-[0.95] transition-transform" style={{...opBtnBase, color: 'var(--accent)'}}>+</button>
+        <button onClick={() => calc('+')} className="rounded-[18px] text-[26px] font-semibold active:scale-[0.95] transition-transform" style={{...opBtnBase, color: 'var(--accent)'}}>+</button>
 
-        <button onClick={() => input('0')} className="col-span-2 h-14 rounded-xl text-xl font-semibold active:scale-[0.95] transition-transform" style={btnBase}>0</button>
-        <button onClick={() => input('.')} className="h-14 rounded-xl text-xl font-semibold active:scale-[0.95] transition-transform" style={btnBase}>,</button>
-        <button onClick={equals} className="h-14 rounded-xl text-xl font-semibold active:scale-[0.95] transition-transform" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}>=</button>
+        <button onClick={() => input('0')} className="col-span-2 rounded-[18px] text-[26px] font-semibold active:scale-[0.95] transition-transform" style={btnBase}>0</button>
+        <button onClick={() => input('.')} className="rounded-[18px] text-[26px] font-semibold active:scale-[0.95] transition-transform" style={btnBase}>,</button>
+        <button onClick={equals} className="rounded-[18px] text-[26px] font-semibold active:scale-[0.95] transition-transform" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}>=</button>
       </div>
 
       {/* Send to account modal */}
