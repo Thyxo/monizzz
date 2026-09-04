@@ -63,7 +63,9 @@ model AutoTransferRule {
   userId            String
   name              String
   amount            Float
+  frequency         String   @default("monthly") // monthly, weekly
   dayOfMonth        Int      @default(1)
+  dayOfWeek         Int?     // 1=Monday, 7=Sunday
   sourceAccountId   String?
   destAccountId     String?
   lastRunAt         DateTime?

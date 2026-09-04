@@ -11,6 +11,22 @@ type CronResult = {
   error?: string;
 };
 
+function getDayOfWeek(date: Date) {
+  const day = date.getDay();
+  return day === 0 ? 7 : day;
+}
+
+function startOfWeek(date: Date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - getDayOfWeek(start) + 1);
+  return start;
+}
+
+function daysInMonth(year: number, month: number) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
 async function isAuthorized(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get('authorization');
@@ -33,6 +49,8 @@ async function runAutoTransfers() {
   const currentDay = now.getDate();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
+  const currentDayOfWeek = getDayOfWeek(now);
+  const currentWeekStart = startOfWeek(now);
 
   const rules = await db.autoTransferRule.findMany({
     include: { source: true, dest: true },
@@ -42,7 +60,11 @@ async function runAutoTransfers() {
   const results: CronResult[] = [];
 
   for (const rule of rules) {
-    if (rule.lastRunAt) {
+    const frequency = rule.frequency === 'weekly' ? 'weekly' : 'monthly';
+    const ruleDayOfMonth = Math.min(rule.dayOfMonth, daysInMonth(currentYear, currentMonth));
+    const ruleDayOfWeek = rule.dayOfWeek || 1;
+
+    if (frequency === 'monthly' && rule.lastRunAt) {
       const lastMonth = rule.lastRunAt.getMonth();
       const lastYear = rule.lastRunAt.getFullYear();
       if (lastMonth === currentMonth && lastYear === currentYear) {
@@ -51,8 +73,18 @@ async function runAutoTransfers() {
       }
     }
 
-    if (currentDay < rule.dayOfMonth) {
+    if (frequency === 'weekly' && rule.lastRunAt && rule.lastRunAt >= currentWeekStart) {
+      results.push({ rule: rule.name, status: 'skipped', reason: 'already_ran_this_week' });
+      continue;
+    }
+
+    if (frequency === 'monthly' && currentDay < ruleDayOfMonth) {
       results.push({ rule: rule.name, status: 'skipped', reason: 'scheduled_day_not_reached' });
+      continue;
+    }
+
+    if (frequency === 'weekly' && currentDayOfWeek !== ruleDayOfWeek) {
+      results.push({ rule: rule.name, status: 'skipped', reason: 'scheduled_weekday_not_reached' });
       continue;
     }
 
@@ -63,7 +95,9 @@ async function runAutoTransfers() {
 
     try {
       const transferId = uuidv4();
-      const txDate = new Date(currentYear, currentMonth, rule.dayOfMonth, 8, 0, 0);
+      const txDate = frequency === 'weekly'
+        ? new Date(currentYear, currentMonth, currentDay, 8, 0, 0)
+        : new Date(currentYear, currentMonth, ruleDayOfMonth, 8, 0, 0);
 
       if (rule.sourceAccountId && rule.destAccountId) {
         await db.$transaction([

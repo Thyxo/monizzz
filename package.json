@@ -9,6 +9,7 @@
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
     "build": "prisma generate && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "prisma db push && node .next/standalone/server.js",
+    "cron:run": "node scripts/run-cron-http.mjs",
     "postinstall": "prisma generate",
     "lint": "eslint .",
     "db:push": "prisma db push --accept-data-loss",

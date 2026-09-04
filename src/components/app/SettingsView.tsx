@@ -20,7 +20,9 @@ export default function SettingsView() {
   const [showNewRule, setShowNewRule] = useState(false);
   const [newRuleName, setNewRuleName] = useState('');
   const [newRuleAmount, setNewRuleAmount] = useState('');
-  const [newRuleDay, setNewRuleDay] = useState('1');
+  const [newRuleFrequency, setNewRuleFrequency] = useState<'monthly' | 'weekly'>('monthly');
+  const [newRuleDayOfMonth, setNewRuleDayOfMonth] = useState(1);
+  const [newRuleDayOfWeek, setNewRuleDayOfWeek] = useState(1);
   const [newRuleSource, setNewRuleSource] = useState('');
   const [newRuleDest, setNewRuleDest] = useState('');
   const [ruleLoading, setRuleLoading] = useState(false);
@@ -78,8 +80,10 @@ export default function SettingsView() {
         id: rule.id,
         sourceAccountId: rule.sourceAccountId || null,
         destAccountId: rule.destAccountId || null,
+        frequency: rule.frequency || 'monthly',
         amount: rule.amount,
         dayOfMonth: rule.dayOfMonth,
+        dayOfWeek: rule.dayOfWeek || null,
         name: rule.name,
       });
       setRules(rules.map((r) => (r.id === updated.rule.id ? updated.rule : r)));
@@ -110,14 +114,18 @@ export default function SettingsView() {
       const data = await api.autoRules.create({
         name: newRuleName,
         amount: parseFloat(newRuleAmount.replace(',', '.')),
-        dayOfMonth: parseInt(newRuleDay) || 1,
+        frequency: newRuleFrequency,
+        dayOfMonth: newRuleDayOfMonth,
+        dayOfWeek: newRuleDayOfWeek,
         sourceAccountId: newRuleSource || undefined,
         destAccountId: newRuleDest || undefined,
       });
       setRules([...rules, data.rule]);
       setNewRuleName('');
       setNewRuleAmount('');
-      setNewRuleDay('1');
+      setNewRuleFrequency('monthly');
+      setNewRuleDayOfMonth(1);
+      setNewRuleDayOfWeek(1);
       setNewRuleSource('');
       setNewRuleDest('');
       setShowNewRule(false);
@@ -159,6 +167,24 @@ export default function SettingsView() {
     { accent: '#ec4899', bg: '#f8fafc', label: 'Rose Light' },
     { accent: '#0ea5e9', bg: '#0f172a', label: 'Ocean' },
   ];
+
+  const weekDays = [
+    { value: 1, label: 'Man' },
+    { value: 2, label: 'Tir' },
+    { value: 3, label: 'Ons' },
+    { value: 4, label: 'Tor' },
+    { value: 5, label: 'Fre' },
+    { value: 6, label: 'Lør' },
+    { value: 7, label: 'Søn' },
+  ];
+
+  const formatRuleSchedule = (rule: any) => {
+    if (rule.frequency === 'weekly') {
+      return `Hver ${weekDays.find((day) => day.value === (rule.dayOfWeek || 1))?.label.toLowerCase()}`;
+    }
+
+    return `Den ${rule.dayOfMonth}. hver måned`;
+  };
 
   const inputStyle: React.CSSProperties = {
     backgroundColor: 'var(--bg)',
@@ -331,7 +357,7 @@ export default function SettingsView() {
               <div>
                 <p className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>{rule.name}</p>
                 <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
-                  {formatAmount(rule.amount)} d. {rule.dayOfMonth}. i måneden
+                  {formatAmount(rule.amount)} · {formatRuleSchedule(rule)}
                 </p>
               </div>
               <button
@@ -425,16 +451,70 @@ export default function SettingsView() {
                 className="w-full px-4 py-3 rounded-xl text-base outline-none"
                 style={inputStyle}
               />
-              <input
-                type="number"
-                placeholder="Dag i måneden (1-28)"
-                value={newRuleDay}
-                onChange={(e) => setNewRuleDay(e.target.value)}
-                min="1"
-                max="28"
-                className="w-full px-4 py-3 rounded-xl text-base outline-none"
-                style={inputStyle}
-              />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewRuleFrequency('monthly')}
+                  className="py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
+                  style={{
+                    backgroundColor: newRuleFrequency === 'monthly' ? 'var(--accent)' : 'var(--bg)',
+                    color: newRuleFrequency === 'monthly' ? 'var(--accent-fg)' : 'var(--fg)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  Hver måned
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewRuleFrequency('weekly')}
+                  className="py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
+                  style={{
+                    backgroundColor: newRuleFrequency === 'weekly' ? 'var(--accent)' : 'var(--bg)',
+                    color: newRuleFrequency === 'weekly' ? 'var(--accent-fg)' : 'var(--fg)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  Hver uge
+                </button>
+              </div>
+
+              {newRuleFrequency === 'monthly' ? (
+                <div className="grid grid-cols-7 gap-1.5">
+                  {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => setNewRuleDayOfMonth(day)}
+                      className="aspect-square rounded-lg text-sm font-semibold active:scale-[0.95] transition-transform"
+                      style={{
+                        backgroundColor: newRuleDayOfMonth === day ? 'var(--accent)' : 'var(--bg)',
+                        color: newRuleDayOfMonth === day ? 'var(--accent-fg)' : 'var(--fg)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      {day}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {weekDays.map((day) => (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => setNewRuleDayOfWeek(day.value)}
+                      className="py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
+                      style={{
+                        backgroundColor: newRuleDayOfWeek === day.value ? 'var(--accent)' : 'var(--bg)',
+                        color: newRuleDayOfWeek === day.value ? 'var(--accent-fg)' : 'var(--fg)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <SelectField
                 value={newRuleSource}
                 onChange={(e) => setNewRuleSource(e.target.value)}

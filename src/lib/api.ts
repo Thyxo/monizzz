@@ -60,9 +60,9 @@ export const api = {
   },
   autoRules: {
     list: () => fetch(`${BASE}/api/auto-rules`, { headers: getHeaders() }).then((r) => handleResponse<{ rules: any[] }>(r)),
-    create: (data: { name: string; amount: number; dayOfMonth?: number; sourceAccountId?: string; destAccountId?: string }) =>
+    create: (data: { name: string; amount: number; frequency?: 'monthly' | 'weekly'; dayOfMonth?: number; dayOfWeek?: number; sourceAccountId?: string; destAccountId?: string }) =>
       fetch(`${BASE}/api/auto-rules`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(data) }).then((r) => handleResponse<{ rule: any }>(r)),
-    update: (data: { id: string; name?: string; amount?: number; dayOfMonth?: number; sourceAccountId?: string | null; destAccountId?: string | null }) =>
+    update: (data: { id: string; name?: string; amount?: number; frequency?: 'monthly' | 'weekly'; dayOfMonth?: number; dayOfWeek?: number | null; sourceAccountId?: string | null; destAccountId?: string | null }) =>
       fetch(`${BASE}/api/auto-rules`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(data) }).then((r) => handleResponse<{ rule: any }>(r)),
     delete: (id: string) => fetch(`${BASE}/api/auto-rules?id=${id}`, { method: 'DELETE', headers: getHeaders() }).then((r) => handleResponse<any>(r)),
   },
