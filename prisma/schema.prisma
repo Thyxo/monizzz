@@ -87,10 +87,16 @@ model AutoTransferRule {
   name              String
   amount            Float
   dayOfMonth        Int      @default(1)
+  // The rule books every `interval` days, weeks or months.
+  frequency         String   @default("monthly") // daily, weekly, monthly
+  interval          Int      @default(1)
+  // Date of the first booking under the current schedule. Null on rules from
+  // before schedules existed; those are monthly on dayOfMonth.
+  anchorDate        DateTime?
   sourceAccountId   String?
   destAccountId     String?
   lastRunAt         DateTime?
-  // Months due before this moment are never booked. Existing rules get the
+  // Bookings due before this moment are never made. Existing rules get the
   // time the column was added, so nothing is back-booked on upgrade.
   startFrom         DateTime @default(now())
   categoryId        String?

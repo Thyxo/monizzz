@@ -94,10 +94,25 @@ export const categoryUpdateSchema = z.object({
 
 const dayOfMonth = z.number().int().min(1, 'Dag skal være 1-31').max(31, 'Dag skal være 1-31');
 
+export const RULE_FREQUENCIES = ['daily', 'weekly', 'monthly'] as const;
+const frequency = z.enum(RULE_FREQUENCIES, { error: 'Ugyldig hyppighed' });
+const interval = z.number().int().min(1, 'Interval skal være 1-365').max(365, 'Interval skal være 1-365');
+// A calendar date without a time, "yyyy-MM-dd".
+const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ugyldig dato');
+
+// A rule's schedule is frequency + interval + nextDate (its first booking). dayOfMonth is
+// what clients sent before schedules existed and still works for monthly rules.
+const schedule = {
+  frequency: frequency.optional(),
+  interval: interval.optional(),
+  nextDate: dateOnly.optional(),
+  dayOfMonth: dayOfMonth.optional(),
+};
+
 export const ruleCreateSchema = z.object({
   name,
   amount: positiveAmount,
-  dayOfMonth: dayOfMonth.default(1),
+  ...schedule,
   sourceAccountId: optionalId,
   destAccountId: optionalId,
   categoryId: optionalId,
@@ -107,7 +122,7 @@ export const ruleUpdateSchema = z.object({
   id,
   name: name.optional(),
   amount: positiveAmount.optional(),
-  dayOfMonth: dayOfMonth.optional(),
+  ...schedule,
   sourceAccountId: optionalId,
   destAccountId: optionalId,
   categoryId: optionalId,

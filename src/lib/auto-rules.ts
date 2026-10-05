@@ -2,9 +2,20 @@ import { db } from '@/lib/db';
 import { postEntry, postTransfer } from '@/lib/ledger';
 
 const TIME_ZONE = 'Europe/Copenhagen';
-const MAX_CATCH_UP_MONTHS = 36;
+// Most bookings one rule makes in a single run; the next run continues from there.
+const MAX_CATCH_UP = 366;
 
-type Ymd = { y: number; m: number; d: number }; // m is 1-12
+export type Ymd = { y: number; m: number; d: number }; // m is 1-12
+
+/** The columns of AutoTransferRule that decide when it books. */
+export type RuleSchedule = {
+  frequency: string; // daily, weekly, monthly
+  interval: number;
+  dayOfMonth: number;
+  anchorDate: Date | null;
+  lastRunAt: Date | null;
+  startFrom: Date;
+};
 
 const partsFormat = new Intl.DateTimeFormat('en-CA', {
   timeZone: TIME_ZONE,
@@ -13,48 +24,93 @@ const partsFormat = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 });
 
-function toYmd(date: Date): Ymd {
+/** The calendar date in Copenhagen at the given moment. */
+export function toYmd(date: Date): Ymd {
   const parts = Object.fromEntries(partsFormat.formatToParts(date).map((p) => [p.type, p.value]));
   return { y: Number(parts.year), m: Number(parts.month), d: Number(parts.day) };
 }
 
 const key = ({ y, m, d }: Ymd) => y * 10000 + m * 100 + d;
 const daysInMonth = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+const dayNumber = ({ y, m, d }: Ymd) => Math.round(Date.UTC(y, m - 1, d) / 86400000);
+function fromDayNumber(n: number): Ymd {
+  const date = new Date(n * 86400000);
+  return { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() };
+}
+
 // 07:00 UTC is morning in Copenhagen all year, so the booking lands on the due day.
-const toDate = ({ y, m, d }: Ymd) => new Date(Date.UTC(y, m - 1, d, 7, 0, 0));
+export const ymdToDate = ({ y, m, d }: Ymd) => new Date(Date.UTC(y, m - 1, d, 7, 0, 0));
+export const formatYmd = ({ y, m, d }: Ymd) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+export const isBefore = (a: Ymd, b: Ymd) => key(a) < key(b);
 
-/**
- * The due dates a rule still owes, oldest first. One per month, on dayOfMonth
- * (clamped to the month's length), after the month of lastRunAt, never before
- * startFrom and never in the future.
- */
-export function pendingDueDates(
-  rule: { dayOfMonth: number; lastRunAt: Date | null; startFrom: Date },
-  now: Date,
-): Date[] {
-  const today = toYmd(now);
+/** Parses "yyyy-MM-dd"; null if it is not a real date. */
+export function parseYmd(text: string): Ymd | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (!match) return null;
+  const ymd = { y: Number(match[1]), m: Number(match[2]), d: Number(match[3]) };
+  return key(fromDayNumber(dayNumber(ymd))) === key(ymd) ? ymd : null;
+}
+
+/** The rule's due dates on or after `lower`, oldest first. Never ends. */
+function* occurrencesFrom(rule: RuleSchedule, lower: Ymd): Generator<Ymd> {
+  const step = Math.max(1, Math.floor(rule.interval) || 1);
   const start = toYmd(rule.startFrom);
-  let { y, m } = start;
 
-  if (rule.lastRunAt) {
-    const last = toYmd(rule.lastRunAt);
-    const next = last.m === 12 ? { y: last.y + 1, m: 1 } : { y: last.y, m: last.m + 1 };
-    if (next.y * 12 + next.m > y * 12 + m) ({ y, m } = next);
-  }
-
-  const due: Date[] = [];
-  for (let i = 0; i < MAX_CATCH_UP_MONTHS; i++) {
-    const candidate = { y, m, d: Math.min(rule.dayOfMonth, daysInMonth(y, m)) };
-    if (key(candidate) > key(today)) break;
-    if (key(candidate) >= key(start)) due.push(toDate(candidate));
-    if (m === 12) {
-      y += 1;
-      m = 1;
-    } else {
-      m += 1;
+  if (rule.frequency === 'daily' || rule.frequency === 'weekly') {
+    const anchorDay = dayNumber(rule.anchorDate ? toYmd(rule.anchorDate) : start);
+    const days = rule.frequency === 'weekly' ? 7 * step : step;
+    for (let k = Math.max(0, Math.ceil((dayNumber(lower) - anchorDay) / days)); ; k++) {
+      yield fromDayNumber(anchorDay + k * days);
+    }
+  } else {
+    // Monthly. Without an anchor the rule repeats on dayOfMonth, counted from the month it started in.
+    const anchor = rule.anchorDate ? toYmd(rule.anchorDate) : { y: start.y, m: start.m, d: rule.dayOfMonth };
+    const anchorIndex = anchor.y * 12 + anchor.m - 1;
+    const lowerIndex = lower.y * 12 + lower.m - 1;
+    for (let k = Math.max(0, Math.ceil((lowerIndex - anchorIndex) / step)); ; k++) {
+      const index = anchorIndex + k * step;
+      const y = Math.floor(index / 12);
+      const m = (index % 12) + 1;
+      // A day the month does not have (the 31st in April) falls on the month's last day.
+      const occurrence = { y, m, d: Math.max(1, Math.min(anchor.d, daysInMonth(y, m))) };
+      if (key(occurrence) >= key(lower)) yield occurrence;
     }
   }
+}
+
+/** The due dates the rule has not booked yet, oldest first, past and future. Never ends. */
+function* unbooked(rule: RuleSchedule): Generator<Ymd> {
+  const start = toYmd(rule.startFrom);
+  const last = rule.lastRunAt ? toYmd(rule.lastRunAt) : null;
+  const afterLast = last ? fromDayNumber(dayNumber(last) + 1) : null;
+  const lower = afterLast && key(afterLast) > key(start) ? afterLast : start;
+
+  for (const occurrence of occurrencesFrom(rule, lower)) {
+    // Before anchorDate existed, lastRunAt was the moment the rule ran, which could be a day
+    // off its due date. One booking per calendar month keeps those rules from booking twice.
+    if (!rule.anchorDate && last && occurrence.y === last.y && occurrence.m === last.m) continue;
+    yield occurrence;
+  }
+}
+
+/**
+ * The bookings a rule owes right now, oldest first: every due date after its last
+ * booking, never before startFrom and never in the future. Missed ones are caught up.
+ */
+export function pendingDueDates(rule: RuleSchedule, now: Date, limit = MAX_CATCH_UP): Date[] {
+  const today = key(toYmd(now));
+  const due: Date[] = [];
+  for (const occurrence of unbooked(rule)) {
+    if (key(occurrence) > today || due.length >= limit) break;
+    due.push(ymdToDate(occurrence));
+  }
   return due;
+}
+
+/** The next date the rule books: an overdue one if it has any, otherwise the next future one. */
+export function nextDueDate(rule: RuleSchedule): Ymd {
+  for (const occurrence of unbooked(rule)) return occurrence;
+  throw new Error('unreachable');
 }
 
 export type RuleRunResult = {
@@ -82,7 +138,7 @@ export async function runDueRules(userId?: string, now = new Date()): Promise<Ru
       const date = dueAt.toISOString().slice(0, 10);
       try {
         const status = await db.$transaction(async (tx) => {
-          // Claim the month first; a concurrent run sees count 0 and backs off.
+          // Claim the due date first; a concurrent run sees count 0 and backs off.
           const claimed = await tx.autoTransferRule.updateMany({
             where: { id: rule.id, lastRunAt },
             data: { lastRunAt: dueAt },

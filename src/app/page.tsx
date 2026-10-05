@@ -72,7 +72,10 @@ const fabTabs: Tab[] = ['home', 'transactions', 'overview', 'calendar'];
 
 export default function Home() {
   return (
-    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: PERSIST_MAX_AGE }}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister, maxAge: PERSIST_MAX_AGE, buster: process.env.NEXT_PUBLIC_BUILD_ID }}
+    >
       <App />
     </PersistQueryClientProvider>
   );

@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { addDays, format, startOfDay } from 'date-fns';
 import { da } from 'date-fns/locale';
 
 const numberFormat = { minimumFractionDigits: 0, maximumFractionDigits: 2 };
@@ -47,6 +47,39 @@ export function fromDateInput(value: string, base: Date = new Date()): string {
   const date = new Date(base);
   date.setFullYear(y, m - 1, d);
   return date.toISOString();
+}
+
+/** A local Date for a "yyyy-MM-dd" value. */
+export function fromYmd(value: string): Date {
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** "i dag", "i morgen" or "fre. 9. okt." for a "yyyy-MM-dd" value. */
+export function formatUpcoming(value: string): string {
+  const date = fromYmd(value);
+  const today = startOfDay(new Date());
+  if (date.getTime() === today.getTime()) return 'i dag';
+  if (date.getTime() === addDays(today, 1).getTime()) return 'i morgen';
+  return format(date, date.getFullYear() === today.getFullYear() ? 'EEE d. MMM' : 'EEE d. MMM yyyy', { locale: da });
+}
+
+const UNITS: Record<string, string> = { daily: 'dag', weekly: 'uge', monthly: 'måned' };
+
+/** "Hver uge", "Hver anden dag", "Hver 3. måned". */
+export function intervalText(frequency: string, interval: number): string {
+  const unit = UNITS[frequency] || UNITS.monthly;
+  if (interval <= 1) return `Hver ${unit}`;
+  return `Hver ${interval === 2 ? 'anden' : `${interval}.`} ${unit}`;
+}
+
+/** How an automatic rule repeats: "Hver uge om fredagen", "Hver anden dag", "D. 1. hver måned". */
+export function scheduleText(rule: { frequency: string; interval: number; dayOfMonth: number; nextDate: string }): string {
+  if (rule.frequency === 'daily') return intervalText('daily', rule.interval);
+  if (rule.frequency === 'weekly') {
+    return `${intervalText('weekly', rule.interval)} om ${format(fromYmd(rule.nextDate), 'EEEE', { locale: da })}en`;
+  }
+  return `D. ${rule.dayOfMonth}. ${intervalText('monthly', rule.interval).toLowerCase()}`;
 }
 
 export type Kind = 'income' | 'expense' | 'transfer';

@@ -60,6 +60,17 @@ export type TransactionFilter = {
   offset?: number;
 };
 
+export type RuleInput = {
+  name: string;
+  amount: number;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  interval: number;
+  nextDate: string; // yyyy-MM-dd, the first booking
+  sourceAccountId?: string | null;
+  destAccountId?: string | null;
+  categoryId?: string | null;
+};
+
 export const api = {
   auth: {
     login: (username: string, password: string) =>
@@ -104,23 +115,9 @@ export const api = {
   },
   autoRules: {
     list: () => request<{ rules: any[] }>('/api/auto-rules'),
-    create: (data: {
-      name: string;
-      amount: number;
-      dayOfMonth?: number;
-      sourceAccountId?: string | null;
-      destAccountId?: string | null;
-      categoryId?: string | null;
-    }) => request<{ rule: any }>('/api/auto-rules', { method: 'POST', body: data }),
-    update: (data: {
-      id: string;
-      name?: string;
-      amount?: number;
-      dayOfMonth?: number;
-      sourceAccountId?: string | null;
-      destAccountId?: string | null;
-      categoryId?: string | null;
-    }) => request<{ rule: any }>('/api/auto-rules', { method: 'PUT', body: data }),
+    create: (data: RuleInput) => request<{ rule: any }>('/api/auto-rules', { method: 'POST', body: data }),
+    update: (data: Partial<RuleInput> & { id: string }) =>
+      request<{ rule: any }>('/api/auto-rules', { method: 'PUT', body: data }),
     delete: (id: string) => request(`/api/auto-rules?id=${id}`, { method: 'DELETE' }),
     run: () => request<{ results: { rule: string; date: string; status: string }[] }>('/api/auto-rules/run', { method: 'POST' }),
   },

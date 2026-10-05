@@ -4,11 +4,11 @@ import { useState } from 'react';
 import { ArrowRight, Download, LogOut, Play, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
-import { api } from '@/lib/api';
+import { api, type RuleInput } from '@/lib/api';
 import { clearCache, useAccounts, useAction, useCategories, useOnline, useRules } from '@/lib/queries';
 import { downloadCsv, transactionsToCsv } from '@/lib/csv';
-import { formatAmount, parseAmount, toDateInput } from '@/lib/format';
-import { ConfirmSheet, Header, Sheet } from '@/components/app/ui';
+import { formatAmount, formatUpcoming, fromYmd, intervalText, parseAmount, scheduleText, toDateInput } from '@/lib/format';
+import { ConfirmSheet, Header, Segmented, Sheet } from '@/components/app/ui';
 
 const colorPresets = [
   { accent: '#10b981', bg: '#0a0a0a', label: 'Emerald Night' },
@@ -25,31 +25,47 @@ type RuleDraft = {
   id?: string;
   name: string;
   amount: string;
-  day: string;
+  frequency: RuleInput['frequency'];
+  interval: string;
+  nextDate: string; // yyyy-MM-dd
   sourceAccountId: string;
   destAccountId: string;
   categoryId: string;
 };
 
-const shortDate = (date: Date) => date.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+const newRule = (): RuleDraft => ({
+  name: '',
+  amount: '',
+  frequency: 'monthly',
+  interval: '1',
+  nextDate: toDateInput(new Date()),
+  sourceAccountId: '',
+  destAccountId: '',
+  categoryId: '',
+});
 
-// Mirrors pendingDueDates() in src/lib/auto-rules.ts closely enough to tell the user when a rule books next.
-function nextRun(rule: { dayOfMonth: number; lastRunAt: string | null; startFrom: string }): string {
-  const today = new Date();
-  const dueIn = (year: number, month: number) =>
-    new Date(year, month, Math.min(rule.dayOfMonth, new Date(year, month + 1, 0).getDate()));
-  const sameMonth = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+const FREQUENCIES: { value: RuleInput['frequency']; label: string }[] = [
+  { value: 'daily', label: 'Dag' },
+  { value: 'weekly', label: 'Uge' },
+  { value: 'monthly', label: 'Måned' },
+];
 
-  let due = dueIn(today.getFullYear(), today.getMonth());
-  const start = new Date(rule.startFrom);
-  start.setHours(0, 0, 0, 0);
-  if ((rule.lastRunAt && sameMonth(new Date(rule.lastRunAt), today)) || due < start) {
-    due = dueIn(today.getFullYear(), today.getMonth() + 1);
-  }
-  return due <= today ? 'gang appen åbnes' : shortDate(due);
+// The intervals offered for a frequency, plus the rule's own if it is outside that range.
+function intervalChoices(frequency: string, current: number): number[] {
+  const choices = Array.from({ length: frequency === 'daily' ? 30 : 12 }, (_, i) => i + 1);
+  return choices.includes(current) ? choices : [...choices, current];
 }
 
-const emptyRule: RuleDraft = { name: '', amount: '', day: '1', sourceAccountId: '', destAccountId: '', categoryId: '' };
+// "Bogføres i morgen og derefter hver uge om fredagen."
+function draftSummary(draft: RuleDraft): string {
+  const repeat = scheduleText({
+    frequency: draft.frequency,
+    interval: parseInt(draft.interval) || 1,
+    dayOfMonth: fromYmd(draft.nextDate).getDate(),
+    nextDate: draft.nextDate,
+  });
+  return `Bogføres ${formatUpcoming(draft.nextDate)} og derefter ${repeat.charAt(0).toLowerCase()}${repeat.slice(1)}.`;
+}
 
 export default function SettingsView() {
   const { user, setUser, logout } = useAppStore();
@@ -75,19 +91,30 @@ export default function SettingsView() {
     setConfirmDelete(false);
   };
   const saveRule = useAction(
-    (d: RuleDraft) => {
-      const data = {
+    async (d: RuleDraft) => {
+      const data: RuleInput = {
         name: d.name.trim(),
         amount: parseAmount(d.amount),
-        dayOfMonth: parseInt(d.day) || 1,
+        frequency: d.frequency,
+        interval: parseInt(d.interval) || 1,
+        nextDate: d.nextDate,
         sourceAccountId: d.sourceAccountId || null,
         destAccountId: d.destAccountId || null,
         // A category only makes sense when money enters or leaves the system.
         categoryId: d.sourceAccountId && d.destAccountId ? null : d.categoryId || null,
       };
-      return d.id ? api.autoRules.update({ id: d.id, ...data }) : api.autoRules.create(data);
+      await (d.id ? api.autoRules.update({ id: d.id, ...data }) : api.autoRules.create(data));
+      // A rule that is due today books straight away instead of at the next app start.
+      const run = await api.autoRules.run().catch(() => null);
+      return run ? run.results.filter((result) => result.status !== 'error').length : 0;
     },
-    { success: 'Regel gemt', onDone: closeRule },
+    {
+      onDone: (booked) => {
+        closeRule();
+        if (booked === 0) toast.success('Regel gemt');
+        else toast.success(booked === 1 ? 'Regel gemt – 1 postering bogført' : `Regel gemt – ${booked} posteringer bogført`);
+      },
+    },
   );
   const deleteRule = useAction((id: string) => api.autoRules.delete(id), { success: 'Regel slettet', onDone: closeRule });
   const runRules = useAction(() => api.autoRules.run(), {
@@ -117,6 +144,7 @@ export default function SettingsView() {
     draft &&
     draft.name.trim() &&
     parseAmount(draft.amount) > 0 &&
+    draft.nextDate &&
     (draft.sourceAccountId || draft.destAccountId) &&
     draft.sourceAccountId !== draft.destAccountId;
   const draftKind = draft?.sourceAccountId && draft.destAccountId ? null : draft?.destAccountId ? 'income' : 'expense';
@@ -170,13 +198,13 @@ export default function SettingsView() {
             className="pressable flex h-8 w-8 items-center justify-center rounded-lg"
             style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
             disabled={!online}
-            onClick={() => setDraft(emptyRule)}
+            onClick={() => setDraft(newRule())}
           >
             <Plus size={18} />
           </button>
         </div>
         <p className="mb-3 text-xs" style={{ color: 'var(--fg-muted)' }}>
-          Regler bogføres automatisk hver måned på den valgte dag. Har appen ikke været åben, indhentes de næste gang, du åbner den.
+          Regler bogføres automatisk, fx hver uge, hver anden dag eller hver måned. Har appen ikke været åben, indhentes de næste gang, du åbner den.
         </p>
 
         {rules.length === 0 ? (
@@ -195,7 +223,10 @@ export default function SettingsView() {
                       id: rule.id,
                       name: rule.name,
                       amount: String(rule.amount).replace('.', ','),
-                      day: String(rule.dayOfMonth),
+                      // The fallbacks cover a backend that has not been updated yet.
+                      frequency: rule.frequency || 'monthly',
+                      interval: String(rule.interval || 1),
+                      nextDate: rule.nextDate || toDateInput(new Date()),
                       sourceAccountId: rule.sourceAccountId || '',
                       destAccountId: rule.destAccountId || '',
                       categoryId: rule.categoryId || '',
@@ -213,7 +244,9 @@ export default function SettingsView() {
                   <p className="mt-1 text-xs" style={{ color: inactive ? 'var(--expense)' : 'var(--fg-muted)' }}>
                     {inactive
                       ? 'Inaktiv – vælg en konto'
-                      : `D. ${rule.dayOfMonth}. hver måned · næste ${nextRun(rule)}`}
+                      : rule.nextDate
+                        ? `${scheduleText(rule)} · næste ${formatUpcoming(rule.nextDate)}`
+                        : `D. ${rule.dayOfMonth}. hver måned`}
                   </p>
                 </button>
               );
@@ -254,31 +287,49 @@ export default function SettingsView() {
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             />
+            <div>
+              <p className="label mb-1.5">Beløb</p>
+              <input
+                className="field"
+                inputMode="decimal"
+                placeholder="250"
+                value={draft.amount}
+                onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
+              />
+            </div>
+            <div>
+              <p className="label mb-1.5">Hvor ofte</p>
+              <Segmented
+                value={draft.frequency}
+                onChange={(frequency) => setDraft({ ...draft, frequency, interval: '1' })}
+                options={FREQUENCIES}
+              />
+            </div>
             <div className="flex gap-2">
               <div className="min-w-0 flex-1">
-                <p className="label mb-1.5">Beløb</p>
-                <input
-                  className="field"
-                  inputMode="decimal"
-                  placeholder="250"
-                  value={draft.amount}
-                  onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
-                />
-              </div>
-              <div className="w-32 shrink-0">
-                <p className="label mb-1.5">Dag i måneden</p>
-                <select className="field" value={draft.day} onChange={(e) => setDraft({ ...draft, day: e.target.value })}>
-                  {Array.from({ length: 31 }, (_, i) => (
-                    <option key={i + 1} value={i + 1}>{i + 1}.</option>
+                <p className="label mb-1.5">Interval</p>
+                <select className="field" value={draft.interval} onChange={(e) => setDraft({ ...draft, interval: e.target.value })}>
+                  {intervalChoices(draft.frequency, parseInt(draft.interval) || 1).map((n) => (
+                    <option key={n} value={n}>{intervalText(draft.frequency, n)}</option>
                   ))}
                 </select>
               </div>
+              <div className="w-40 shrink-0">
+                <p className="label mb-1.5">{draft.id ? 'Næste gang' : 'Første gang'}</p>
+                <input
+                  type="date"
+                  className="field"
+                  min={toDateInput(new Date())}
+                  value={draft.nextDate}
+                  onChange={(e) => e.target.value && setDraft({ ...draft, nextDate: e.target.value })}
+                />
+              </div>
             </div>
-            {parseInt(draft.day) > 28 && (
-              <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
-                I måneder med færre dage bogføres reglen på månedens sidste dag.
-              </p>
-            )}
+            <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+              {draftSummary(draft)}
+              {draft.frequency === 'monthly' && fromYmd(draft.nextDate).getDate() > 28 &&
+                ' I måneder med færre dage bogføres den på månedens sidste dag.'}
+            </p>
             <div>
               <p className="label mb-1.5">Fra</p>
               <select className="field" value={draft.sourceAccountId} onChange={(e) => setDraft({ ...draft, sourceAccountId: e.target.value })}>

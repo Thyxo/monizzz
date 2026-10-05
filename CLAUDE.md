@@ -43,7 +43,7 @@ There is exactly one route, `src/app/page.tsx`, and it is a client component. It
 - **Data:** views read through the react-query hooks in `src/lib/queries.ts` (`useAccounts`, `useCategories`, `useTransactions`, `useMonthTransactions`, …) and write through `useAction`, which invalidates every query afterwards and reports errors as a toast. All HTTP goes through the `api` object in `src/lib/api.ts`, which attaches the bearer token and calls the store's logout on a 401 (no page reload).
 - **Statistics are computed in the client** from transaction lists (Hjem trend and month totals, Oversigt per category, Kalender dots). There is no stats endpoint. A transaction with a `transferId` is a transfer and is excluded from income/expense figures (`txKind` in `src/lib/format.ts`).
 - **Add/edit transaction** is one global bottom sheet (`TransactionSheet.tsx`) opened with `openSheet(...)` from the store; passing `transaction` puts it in edit mode.
-- **Offline (read-only):** the query cache is persisted to `localStorage` and the user is cached in the store, so the app opens with the last fetched data. Writes need a connection; `useOnline()` disables the buttons. The cache is cleared on login and logout.
+- **Offline (read-only):** the query cache is persisted to `localStorage` and the user is cached in the store, so the app opens with the last fetched data. Writes need a connection; `useOnline()` disables the buttons. The cache is cleared on login and logout. It is also discarded whenever `NEXT_PUBLIC_BUILD_ID` (set per build in `next.config.ts`) changes, so data cached by an older version never reaches newer code; still, read fields the API added recently defensively, because the Vercel frontend and the Railway backend do not deploy at the same instant.
 - **Calculator state** lives in `useCalculatorStore` (persisted) so a half-typed calculation survives leaving the tab. It stores numbers with `.`; the comma is display-only.
 
 ### Theming and styling
@@ -70,9 +70,14 @@ Prisma models: `User` → `Account` → `Transaction`, optional one-to-one `Goal
 
 ### Automatic rules
 
-`src/lib/auto-rules.ts` books monthly rules. `pendingDueDates()` lists what a rule still owes: one booking per month on `dayOfMonth` (clamped to the month's length, Europe/Copenhagen), after the month of `lastRunAt`, never before `startFrom` and never in the future — so missed months are caught up. Each booking first claims the month with a conditional update of `lastRunAt`, which makes concurrent runs safe. Source + destination is a transfer, source only is money leaving the system, destination only is money arriving from outside.
+A rule books every `interval` days, weeks or months (`frequency`), starting on `anchorDate`. `src/lib/auto-rules.ts` owns all of the date logic, in Europe/Copenhagen calendar dates:
 
-The app calls `POST /api/auto-rules/run` on start, so no scheduler is required. `POST /api/cron/run` does the same for all users and requires `CRON_SECRET`.
+- `pendingDueDates()` lists the bookings a rule owes: every due date after its last booking (`lastRunAt`), never before `startFrom` and never in the future — so missed ones are caught up, at most 366 per run. Monthly rules on a day the month lacks book on the month's last day.
+- Rules created before schedules existed have no `anchorDate`; they are monthly on `dayOfMonth` and book at most once per calendar month. Keep that branch: production still has such rows.
+- `runDueRules()` claims each due date with a conditional update of `lastRunAt` before booking it, which makes concurrent runs safe. Source + destination is a transfer, source only is money leaving the system, destination only is money arriving from outside.
+- The API exposes the schedule as `frequency`, `interval` and `nextDate` (`yyyy-MM-dd`, computed by `nextDueDate()`). Sending back the `nextDate` a rule already has leaves its schedule untouched; a new one must be today or later and becomes the anchor.
+
+The app calls `POST /api/auto-rules/run` on start and after saving a rule, so no scheduler is required. `POST /api/cron/run` does the same for all users and requires `CRON_SECRET`.
 
 ### PWA
 
