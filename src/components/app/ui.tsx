@@ -1,6 +1,6 @@
 'use client';
 
-import { createElement, type ReactNode } from 'react';
+import { createElement, useEffect, useState, type ReactNode } from 'react';
 import { Drawer } from 'vaul';
 import { ArrowLeftRight, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
 import { addMonths } from 'date-fns';
@@ -8,6 +8,35 @@ import { UNCATEGORISED, categoryIcon } from '@/lib/icons';
 import { accountColor, formatAmountShort, formatMonth, txKind, txTitle } from '@/lib/format';
 import { tint } from '@/lib/theme';
 import AccountIcon from '@/components/app/AccountIcon';
+
+// How much of the bottom of the screen the on-screen keyboard covers. iOS lays the keyboard
+// over the page instead of resizing it, so a sheet has to be lifted above it by hand.
+function useKeyboardInset(active: boolean) {
+  const [inset, setInset] = useState(0);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!active || !viewport) return;
+    const update = () => {
+      const covered = Math.round(window.innerHeight - viewport.height - viewport.offsetTop);
+      // Small differences are browser bars, not a keyboard.
+      setInset(covered > 80 ? covered : 0);
+    };
+    update();
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+      setInset(0);
+    };
+  }, [active]);
+
+  useEffect(() => {
+    if (inset > 0) document.activeElement?.scrollIntoView({ block: 'nearest' });
+  }, [inset]);
+
+  return inset;
+}
 
 /** Bottom sheet that can be dragged down to close. */
 export function Sheet({
@@ -21,20 +50,31 @@ export function Sheet({
   title: string;
   children: ReactNode;
 }) {
+  const keyboard = useKeyboardInset(open);
   return (
-    <Drawer.Root open={open} onOpenChange={(next) => !next && onClose()}>
+    // vaul's own keyboard handling left the sheet stuck half off-screen on iOS, so it is done here.
+    <Drawer.Root open={open} onOpenChange={(next) => !next && onClose()} repositionInputs={false}>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-50 bg-black/60" />
         <Drawer.Content
           aria-describedby={undefined}
-          className="fixed bottom-0 left-0 right-0 z-50 mx-auto flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-3xl outline-none"
-          style={{ backgroundColor: 'var(--sheet)', color: 'var(--fg)', borderTop: '1px solid var(--border)' }}
+          className="fixed left-0 right-0 z-50 mx-auto flex w-full max-w-md flex-col rounded-t-3xl outline-none"
+          style={{
+            bottom: keyboard,
+            maxHeight: `calc(92dvh - ${keyboard}px)`,
+            backgroundColor: 'var(--sheet)',
+            color: 'var(--fg)',
+            borderTop: '1px solid var(--border)',
+          }}
         >
           <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full" style={{ backgroundColor: 'var(--border)' }} />
           <Drawer.Title className="px-5 pt-3 pb-1 text-lg font-bold">{title}</Drawer.Title>
           <div
             className="overflow-y-auto px-5 pt-2"
-            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.25rem)', overscrollBehavior: 'contain' }}
+            style={{
+              paddingBottom: keyboard ? '1rem' : 'calc(env(safe-area-inset-bottom) + 1.25rem)',
+              overscrollBehavior: 'none',
+            }}
           >
             {children}
           </div>

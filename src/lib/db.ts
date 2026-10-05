@@ -10,4 +10,15 @@ export const db =
     log: ['query'],
   })
 
+// The user fields the client gets back from login, register, me and settings.
+export const userSelect = {
+  id: true,
+  username: true,
+  themeAccentColor: true,
+  themeBgColor: true,
+  greetingStyle: true,
+  defaultAccountId: true,
+  hiddenWidgets: true,
+} as const
+
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db

@@ -119,3 +119,15 @@ export const DEFAULT_GREETING = 'Hej, {navn}';
 export function greeting(user: { username: string; greetingStyle?: string } | null): string {
   return (user?.greetingStyle || DEFAULT_GREETING).replace('{navn}', user?.username || '');
 }
+
+// The sections of the home screen that can be turned off under Indstillinger.
+export const HOME_WIDGETS = [
+  { key: 'balance', label: 'Samlet saldo og graf' },
+  { key: 'quick', label: 'Indtægt og udgift denne måned' },
+  { key: 'accounts', label: 'Konti' },
+  { key: 'recent', label: 'Seneste transaktioner' },
+];
+
+export function hiddenWidgets(user: { hiddenWidgets?: string } | null): string[] {
+  return (user?.hiddenWidgets || '').split(',').filter(Boolean);
+}

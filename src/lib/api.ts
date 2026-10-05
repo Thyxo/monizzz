@@ -110,7 +110,13 @@ export const api = {
       request<{ goal: any }>('/api/goals', { method: 'PUT', body: { accountId, targetAmount } }),
   },
   settings: {
-    update: (data: { themeAccentColor?: string; themeBgColor?: string; greetingStyle?: string }) =>
+    update: (data: {
+      themeAccentColor?: string;
+      themeBgColor?: string;
+      greetingStyle?: string;
+      defaultAccountId?: string | null;
+      hiddenWidgets?: string;
+    }) =>
       request<{ user: any }>('/api/settings', { method: 'PUT', body: data }),
   },
   autoRules: {

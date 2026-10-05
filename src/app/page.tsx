@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   List,
   Plus,
+  Repeat,
   Settings,
   Tags,
   Target,
@@ -30,6 +31,7 @@ import OverviewView from '@/components/app/OverviewView';
 import CalendarView from '@/components/app/CalendarView';
 import AccountsView from '@/components/app/AccountsView';
 import GoalsView from '@/components/app/GoalsView';
+import RulesView from '@/components/app/RulesView';
 import CalculatorView from '@/components/app/CalculatorView';
 import CategoriesView from '@/components/app/CategoriesView';
 import SettingsView from '@/components/app/SettingsView';
@@ -37,14 +39,15 @@ import TransactionSheet from '@/components/app/TransactionSheet';
 
 const mainTabs: { key: Tab; label: string; icon: LucideIcon }[] = [
   { key: 'home', label: 'Hjem', icon: House },
-  { key: 'transactions', label: 'Transaktioner', icon: List },
-  { key: 'overview', label: 'Oversigt', icon: LayoutGrid },
-  { key: 'calendar', label: 'Kalender', icon: CalendarDays },
+  { key: 'accounts', label: 'Konti', icon: Wallet },
+  { key: 'goals', label: 'Mål', icon: Target },
 ];
 
 const moreTabs: { key: Tab; label: string; icon: LucideIcon }[] = [
-  { key: 'accounts', label: 'Konti', icon: Wallet },
-  { key: 'goals', label: 'Mål', icon: Target },
+  { key: 'transactions', label: 'Transaktioner', icon: List },
+  { key: 'overview', label: 'Oversigt', icon: LayoutGrid },
+  { key: 'calendar', label: 'Kalender', icon: CalendarDays },
+  { key: 'rules', label: 'Automatiske regler', icon: Repeat },
   { key: 'calculator', label: 'Lommeregner', icon: Calculator },
   { key: 'categories', label: 'Kategorier', icon: Tags },
   { key: 'settings', label: 'Indstillinger', icon: Settings },
@@ -57,6 +60,7 @@ const views: Record<Tab, () => React.JSX.Element> = {
   calendar: CalendarView,
   accounts: AccountsView,
   goals: GoalsView,
+  rules: RulesView,
   calculator: CalculatorView,
   categories: CategoriesView,
   settings: SettingsView,

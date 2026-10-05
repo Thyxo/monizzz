@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, userSelect } from '@/lib/db';
 import { hashPassword, createToken } from '@/lib/auth';
 import { rateLimit } from '@/lib/rate-limit';
 import { ApiError, open, parseBody } from '@/lib/route';
@@ -17,12 +17,6 @@ export const POST = open('Register', async (request) => {
   const token = await createToken(user.id, user.username);
   return {
     token,
-    user: {
-      id: user.id,
-      username: user.username,
-      themeAccentColor: user.themeAccentColor,
-      themeBgColor: user.themeBgColor,
-      greetingStyle: user.greetingStyle,
-    },
+    user: Object.fromEntries(Object.keys(userSelect).map((key) => [key, user[key]])),
   };
 });

@@ -14,6 +14,10 @@ model User {
   themeAccentColor String   @default("#6366f1")
   themeBgColor     String   @default("#0f0f0f")
   greetingStyle    String   @default("Hej, {navn}")
+  // Preselected in the add-transaction sheet. Not a relation: an id whose account is gone is ignored.
+  defaultAccountId String?
+  // Comma-separated keys of the home-screen sections the user has turned off.
+  hiddenWidgets    String   @default("")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

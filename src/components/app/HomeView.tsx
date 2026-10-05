@@ -6,7 +6,7 @@ import { ArrowDownLeft, ArrowUpRight, Plus } from 'lucide-react';
 import { startOfDay, startOfMonth, subDays } from 'date-fns';
 import { useAppStore } from '@/store';
 import { useAccounts, useOnline, useRecentTransactions } from '@/lib/queries';
-import { ACCOUNT_TYPE_LABELS, formatAmount, formatNumber, greeting, txKind } from '@/lib/format';
+import { ACCOUNT_TYPE_LABELS, formatAmount, formatNumber, greeting, hiddenWidgets, txKind } from '@/lib/format';
 import { tint } from '@/lib/theme';
 import { AccountBadge, SkeletonList, TransactionRow } from '@/components/app/ui';
 
@@ -50,13 +50,14 @@ export default function HomeView() {
   }, [transactions, total]);
 
   const [whole, decimals] = formatNumber(total).split(',');
+  const hidden = hiddenWidgets(user);
+  const show = (key: string) => !hidden.includes(key);
 
   return (
     <div className="scroll-area px-4 pb-24" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.25rem)' }}>
-      <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>{greeting(user)}</p>
-      <h1 className="mb-4 text-2xl font-bold">Budget</h1>
+      <h1 className="mb-4 truncate text-2xl font-bold">{greeting(user)}</h1>
 
-      <div className="card relative overflow-hidden" style={{ backgroundColor: tint(user?.themeAccentColor || '#10b981', 0.1) }}>
+      {show('balance') && <div className="card relative mb-3 overflow-hidden" style={{ backgroundColor: tint(user?.themeAccentColor || '#10b981', 0.1) }}>
         <div className="absolute inset-x-0 bottom-0 h-16 opacity-70">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={trend} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
@@ -98,9 +99,9 @@ export default function HomeView() {
             {formatNumber(change)} kr på 30 dage
           </p>
         </div>
-      </div>
+      </div>}
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      {show('quick') && <div className="grid grid-cols-2 gap-3">
         <QuickCard
           label="Indtægt"
           amount={income}
@@ -117,8 +118,9 @@ export default function HomeView() {
           disabled={!online}
           onAdd={() => openSheet({ kind: 'expense' })}
         />
-      </div>
+      </div>}
 
+      {show('accounts') && <>
       <SectionTitle title="Konti" action="Se alle" onAction={() => setActiveTab('accounts')} />
       {accountsPending ? (
         <SkeletonList rows={3} />
@@ -127,7 +129,7 @@ export default function HomeView() {
           Opret din første konto
         </button>
       ) : (
-        <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+        <div className="h-scroll -mx-4 gap-3 px-4 pb-1">
           {accounts.map((account) => (
             <button
               key={account.id}
@@ -146,7 +148,9 @@ export default function HomeView() {
           ))}
         </div>
       )}
+      </>}
 
+      {show('recent') && <>
       <SectionTitle title="Seneste" action="Se alle" onAction={() => setActiveTab('transactions')} />
       {txPending ? (
         <SkeletonList rows={4} />
@@ -161,13 +165,20 @@ export default function HomeView() {
           ))}
         </div>
       )}
+      </>}
+
+      {hidden.length >= 4 && (
+        <p className="py-10 text-center text-sm" style={{ color: 'var(--fg-muted)' }}>
+          Alt på Hjem er slået fra. Slå det til igen under Mere → Indstillinger.
+        </p>
+      )}
     </div>
   );
 }
 
 function SectionTitle({ title, action, onAction }: { title: string; action: string; onAction: () => void }) {
   return (
-    <div className="mb-2 mt-6 flex items-center justify-between">
+    <div className="mb-2 mt-6 flex items-center justify-between first:mt-0">
       <p className="label">{title}</p>
       <button className="text-xs font-semibold" style={{ color: 'var(--accent)' }} onClick={onAction}>
         {action}

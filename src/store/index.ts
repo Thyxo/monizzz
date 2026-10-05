@@ -9,6 +9,7 @@ export type Tab =
   | 'calendar'
   | 'accounts'
   | 'goals'
+  | 'rules'
   | 'calculator'
   | 'categories'
   | 'settings';
@@ -19,6 +20,9 @@ export type User = {
   themeAccentColor: string;
   themeBgColor: string;
   greetingStyle: string;
+  // Optional: a backend that has not been updated yet does not send these.
+  defaultAccountId?: string | null;
+  hiddenWidgets?: string;
 };
 
 export type EntryKind = 'expense' | 'income' | 'transfer';
