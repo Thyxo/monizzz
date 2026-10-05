@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { QueryClient, keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  QueryClient,
+  dehydrate,
+  hydrate,
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { addMonths, startOfMonth, subDays, startOfDay } from 'date-fns';
 import { toast } from 'sonner';
 import { api, type TransactionFilter } from '@/lib/api';
@@ -18,8 +26,10 @@ export const queryClient = new QueryClient({
   },
 });
 
-export const PERSIST_MAX_AGE = WEEK;
-export const PERSIST_KEY = 'monizzz_cache';
+const PERSIST_KEY = 'monizzz_cache';
+// Different for every build (see next.config.ts). Data saved by another version of the app
+// is thrown away instead of being handed to code that may expect a different shape.
+const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || '';
 
 export function clearCache() {
   queryClient.clear();
@@ -27,6 +37,40 @@ export function clearCache() {
     localStorage.removeItem(PERSIST_KEY);
   } catch {}
 }
+
+/**
+ * Read-only offline support: the last fetched data is kept in localStorage and loaded back
+ * when the app starts, so it can open without a connection.
+ */
+function persistCache() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PERSIST_KEY) || 'null');
+    if (saved && saved.buildId === BUILD_ID && Date.now() - saved.savedAt < WEEK) {
+      hydrate(queryClient, saved.state);
+    } else {
+      localStorage.removeItem(PERSIST_KEY);
+    }
+  } catch {
+    // A cache that cannot be read is simply not used.
+  }
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  queryClient.getQueryCache().subscribe(() => {
+    if (timer) return;
+    timer = setTimeout(() => {
+      timer = null;
+      try {
+        const state = dehydrate(queryClient);
+        localStorage.setItem(PERSIST_KEY, JSON.stringify({ buildId: BUILD_ID, savedAt: Date.now(), state }));
+      } catch {
+        // Storage is full or unavailable: the app still works, only without offline data.
+      }
+    }, 1000);
+  });
+}
+
+// At import time in the browser, so the saved data is in place before the first query mounts.
+if (typeof window !== 'undefined') persistCache();
 
 export function useAccounts() {
   const result = useQuery({ queryKey: ['accounts'], queryFn: api.accounts.list });

@@ -6,9 +6,9 @@ import { ArrowDownLeft, ArrowUpRight, Plus } from 'lucide-react';
 import { startOfDay, startOfMonth, subDays } from 'date-fns';
 import { useAppStore } from '@/store';
 import { useAccounts, useOnline, useRecentTransactions } from '@/lib/queries';
-import { ACCOUNT_TYPE_LABELS, formatAmount, formatNumber, txKind } from '@/lib/format';
+import { ACCOUNT_TYPE_LABELS, formatAmount, formatNumber, greeting, txKind } from '@/lib/format';
 import { tint } from '@/lib/theme';
-import { SkeletonList, TransactionRow } from '@/components/app/ui';
+import { AccountBadge, SkeletonList, TransactionRow } from '@/components/app/ui';
 
 const TREND_DAYS = 30;
 // Covers both the 30-day trend and the whole current month.
@@ -53,7 +53,7 @@ export default function HomeView() {
 
   return (
     <div className="scroll-area px-4 pb-24" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.25rem)' }}>
-      <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>Hej, {user?.username}</p>
+      <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>{greeting(user)}</p>
       <h1 className="mb-4 text-2xl font-bold">Budget</h1>
 
       <div className="card relative overflow-hidden" style={{ backgroundColor: tint(user?.themeAccentColor || '#10b981', 0.1) }}>
@@ -134,11 +134,12 @@ export default function HomeView() {
               onClick={() => openAccount(account.id)}
               className="card pressable w-40 shrink-0 p-4 text-left"
             >
-              <p className="truncate text-sm font-semibold">{account.name}</p>
+              <AccountBadge type={account.type} size={36} />
+              <p className="mt-3 truncate text-sm font-semibold">{account.name}</p>
               <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
                 {ACCOUNT_TYPE_LABELS[account.type] || account.type}
               </p>
-              <p className="mt-3 truncate text-base font-bold" style={{ color: account.balance < 0 ? 'var(--expense)' : 'var(--fg)' }}>
+              <p className="mt-2 truncate text-base font-bold" style={{ color: account.balance < 0 ? 'var(--expense)' : 'var(--fg)' }}>
                 {formatAmount(account.balance)}
               </p>
             </button>

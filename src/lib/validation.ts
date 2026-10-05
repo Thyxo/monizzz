@@ -75,6 +75,8 @@ export const goalSchema = z.object({
 export const settingsSchema = z.object({
   themeAccentColor: hexColor.optional(),
   themeBgColor: hexColor.optional(),
+  // Shown on the home screen; "{navn}" is replaced by the username.
+  greetingStyle: z.string().trim().min(1, 'Hilsenen må ikke være tom').max(60, 'Hilsenen er for lang').optional(),
 });
 
 export const categoryCreateSchema = z.object({
@@ -100,13 +102,14 @@ const interval = z.number().int().min(1, 'Interval skal være 1-365').max(365, '
 // A calendar date without a time, "yyyy-MM-dd".
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ugyldig dato');
 
-// A rule's schedule is frequency + interval + nextDate (its first booking). dayOfMonth is
-// what clients sent before schedules existed and still works for monthly rules.
+// A rule's schedule is frequency + interval + nextDate (its first booking). Clients from
+// before nextDate existed send dayOfMonth (monthly) or dayOfWeek (weekly) instead.
 const schedule = {
   frequency: frequency.optional(),
   interval: interval.optional(),
   nextDate: dateOnly.optional(),
   dayOfMonth: dayOfMonth.optional(),
+  dayOfWeek: z.number().int().min(1, 'Vælg en ugedag').max(7, 'Vælg en ugedag').nullish(),
 };
 
 export const ruleCreateSchema = z.object({

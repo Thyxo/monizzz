@@ -2,7 +2,7 @@ import { db } from '@/lib/db';
 import { authed, parseBody } from '@/lib/route';
 import { settingsSchema } from '@/lib/validation';
 
-const select = { id: true, username: true, themeAccentColor: true, themeBgColor: true };
+const select = { id: true, username: true, themeAccentColor: true, themeBgColor: true, greetingStyle: true };
 
 export const GET = authed('Get settings', async (_request, user) => {
   const fullUser = await db.user.findUnique({ where: { id: user.userId }, select });

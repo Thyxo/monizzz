@@ -1,5 +1,14 @@
 import { db } from '@/lib/db';
-import { formatYmd, isBefore, nextDueDate, parseYmd, toYmd, ymdToDate, type RuleSchedule } from '@/lib/auto-rules';
+import {
+  formatYmd,
+  isBefore,
+  isoWeekday,
+  nextDueDate,
+  parseYmd,
+  toYmd,
+  ymdToDate,
+  type RuleSchedule,
+} from '@/lib/auto-rules';
 import { ApiError, authed, parseBody, requireParam } from '@/lib/route';
 import { ruleCreateSchema, ruleUpdateSchema } from '@/lib/validation';
 
@@ -31,22 +40,19 @@ async function assertOwned(
  * Sending back the nextDate the rule already has changes nothing, so the client can
  * always submit the whole form.
  */
-function scheduleData(
-  input: { frequency?: string; interval?: number; nextDate?: string; dayOfMonth?: number },
-  existing?: RuleSchedule,
-) {
-  const current = { frequency: existing?.frequency ?? 'monthly', interval: existing?.interval ?? 1 };
-  const frequency = input.frequency ?? current.frequency;
-  const interval = input.interval ?? current.interval;
+type ScheduleInput = {
+  frequency?: string;
+  interval?: number;
+  nextDate?: string;
+  dayOfMonth?: number;
+  dayOfWeek?: number | null;
+};
 
-  if (input.nextDate === undefined) {
-    if (frequency !== current.frequency || interval !== current.interval) {
-      throw new ApiError(400, 'Vælg en dato for første bogføring');
-    }
-    // Clients from before schedules existed only send a day of the month.
-    return input.dayOfMonth !== undefined && !existing?.anchorDate ? { dayOfMonth: input.dayOfMonth } : {};
-  }
+function scheduleData(input: ScheduleInput, existing?: RuleSchedule) {
+  if (input.nextDate === undefined) return legacyScheduleData(input, existing);
 
+  const frequency = input.frequency ?? existing?.frequency ?? 'monthly';
+  const interval = input.interval ?? existing?.interval ?? 1;
   const date = parseYmd(input.nextDate);
   if (!date) throw new ApiError(400, 'Ugyldig dato');
   if (
@@ -59,7 +65,33 @@ function scheduleData(
   }
   if (isBefore(date, toYmd(new Date()))) throw new ApiError(400, 'Datoen kan ikke ligge før i dag');
 
-  return { frequency, interval, anchorDate: ymdToDate(date), dayOfMonth: date.d };
+  return {
+    frequency,
+    interval,
+    anchorDate: ymdToDate(date),
+    dayOfMonth: date.d,
+    dayOfWeek: frequency === 'weekly' ? isoWeekday(date) : null,
+  };
+}
+
+/**
+ * Clients from before nextDate existed describe a schedule as monthly on dayOfMonth or
+ * weekly on dayOfWeek. That still works for rules without an anchor; a rule that has one
+ * keeps its schedule, so such a client can change the rest of the rule without breaking it.
+ */
+function legacyScheduleData(input: ScheduleInput, existing?: RuleSchedule) {
+  if (existing?.anchorDate) return {};
+  if (input.frequency === 'daily' || (input.interval ?? 1) !== 1) {
+    throw new ApiError(400, 'Vælg en dato for første bogføring');
+  }
+  const frequency = input.frequency ?? existing?.frequency ?? 'monthly';
+  return {
+    ...(input.frequency !== undefined && { frequency }),
+    ...(input.dayOfMonth !== undefined && { dayOfMonth: input.dayOfMonth }),
+    ...(frequency === 'weekly'
+      ? { dayOfWeek: input.dayOfWeek ?? existing?.dayOfWeek ?? 1 }
+      : input.frequency !== undefined && { dayOfWeek: null }),
+  };
 }
 
 export const GET = authed('Get auto rules', async (_request, user) => {

@@ -20,7 +20,7 @@ npm run db:push      # prisma db push --accept-data-loss
 npm run db:migrate   # prisma migrate dev (no migrations directory exists yet; schema is synced with db push)
 ```
 
-Both `bun.lock` and `package-lock.json` are committed; the `.zscripts` use bun, the package scripts work with npm.
+Two lockfiles are in use and both matter: Railway installs with `bun install --frozen-lockfile` (`bun.lock`) and Vercel with npm (`package-lock.json`). Adding or upgrading a dependency must update both, otherwise the Railway build fails while Vercel's succeeds and the two halves of the app end up on different versions. Prefer not adding dependencies. Because of the two lockfiles the hosts also run slightly different versions (for example Next and zod), so stay on APIs that exist in the older of the two.
 
 There is no JS test suite. `tests/*.sh` are bash tests for the `.zscripts` deploy helpers only (e.g. `bash tests/database-runtime-build.sh`).
 
@@ -43,7 +43,7 @@ There is exactly one route, `src/app/page.tsx`, and it is a client component. It
 - **Data:** views read through the react-query hooks in `src/lib/queries.ts` (`useAccounts`, `useCategories`, `useTransactions`, `useMonthTransactions`, …) and write through `useAction`, which invalidates every query afterwards and reports errors as a toast. All HTTP goes through the `api` object in `src/lib/api.ts`, which attaches the bearer token and calls the store's logout on a 401 (no page reload).
 - **Statistics are computed in the client** from transaction lists (Hjem trend and month totals, Oversigt per category, Kalender dots). There is no stats endpoint. A transaction with a `transferId` is a transfer and is excluded from income/expense figures (`txKind` in `src/lib/format.ts`).
 - **Add/edit transaction** is one global bottom sheet (`TransactionSheet.tsx`) opened with `openSheet(...)` from the store; passing `transaction` puts it in edit mode.
-- **Offline (read-only):** the query cache is persisted to `localStorage` and the user is cached in the store, so the app opens with the last fetched data. Writes need a connection; `useOnline()` disables the buttons. The cache is cleared on login and logout. It is also discarded whenever `NEXT_PUBLIC_BUILD_ID` (set per build in `next.config.ts`) changes, so data cached by an older version never reaches newer code; still, read fields the API added recently defensively, because the Vercel frontend and the Railway backend do not deploy at the same instant.
+- **Offline (read-only):** the query cache is persisted to `localStorage` and the user is cached in the store, so the app opens with the last fetched data. Writes need a connection; `useOnline()` disables the buttons. `persistCache()` in `src/lib/queries.ts` does the saving and restoring (written by hand to avoid extra dependencies). The cache is cleared on login and logout. It is also discarded whenever `NEXT_PUBLIC_BUILD_ID` (set per build in `next.config.ts`) changes, so data cached by an older version never reaches newer code; still, read fields the API added recently defensively, because the Vercel frontend and the Railway backend do not deploy at the same instant.
 - **Calculator state** lives in `useCalculatorStore` (persisted) so a half-typed calculation survives leaving the tab. It stores numbers with `.`; the comma is display-only.
 
 ### Theming and styling
@@ -66,6 +66,7 @@ Prisma models: `User` → `Account` → `Transaction`, optional one-to-one `Goal
 - A transfer is two `Transaction` rows (negative on source, positive on destination) sharing a `transferId`, with notes suffixed `(udgående)` / `(indgående)`. Editing or deleting either row applies to both.
 - The transaction's date is `createdAt`, which is user-editable. There is no separate date column.
 - `Account.type` is a free-form string (`standard`, `opsparing`, `monizz`, `donation`, `custom`, `goal_savings`). Only `goal_savings` accounts get a `Goal` row and appear under Mål.
+- `User.greetingStyle` is the home-screen greeting; `{navn}` in it is replaced by the username (`greeting()` in `src/lib/format.ts`).
 - `Category.kind` is `expense` or `income`; `Transaction.categoryId` is optional (null = "Ukategoriseret") and is set null when a category is deleted.
 
 ### Automatic rules
@@ -73,7 +74,7 @@ Prisma models: `User` → `Account` → `Transaction`, optional one-to-one `Goal
 A rule books every `interval` days, weeks or months (`frequency`), starting on `anchorDate`. `src/lib/auto-rules.ts` owns all of the date logic, in Europe/Copenhagen calendar dates:
 
 - `pendingDueDates()` lists the bookings a rule owes: every due date after its last booking (`lastRunAt`), never before `startFrom` and never in the future — so missed ones are caught up, at most 366 per run. Monthly rules on a day the month lacks book on the month's last day.
-- Rules created before schedules existed have no `anchorDate`; they are monthly on `dayOfMonth` and book at most once per calendar month. Keep that branch: production still has such rows.
+- Rules created before anchors existed have no `anchorDate`: they are monthly on `dayOfMonth` or weekly on `dayOfWeek` (1=Monday), and book at most once per calendar month or week. Keep that branch: production has such rows, and requests in that shape (no `nextDate`) are still accepted.
 - `runDueRules()` claims each due date with a conditional update of `lastRunAt` before booking it, which makes concurrent runs safe. Source + destination is a transfer, source only is money leaving the system, destination only is money arriving from outside.
 - The API exposes the schedule as `frequency`, `interval` and `nextDate` (`yyyy-MM-dd`, computed by `nextDueDate()`). Sending back the `nextDate` a rule already has leaves its schedule untouched; a new one must be today or later and becomes the anchor.
 
@@ -91,6 +92,7 @@ Repo: https://github.com/Thyxo/monizzz. Both hosts build the same full Next.js a
 - **Backend — Railway** project `Monizzz`, service `monizzz` (Railpack build, `npm run build` / `npm run start`, so `prisma db push` runs against production on every deploy) at `monizzz-production.up.railway.app`, plus a `Postgres` service with a volume. Service variables: `DATABASE_URL`, `JWT_SECRET`, `CRON_SECRET`, `CORS_ORIGIN`, `HOSTNAME`.
 - Because the browser calls the API cross-origin, `src/proxy.ts` (CORS + `OPTIONS` handling) is load-bearing, and auth must stay header-based rather than cookie-based.
 - No cron schedule is configured on Railway or Vercel, and none is needed: the app books due rules itself on start.
+- The app is also worked on from other machines. Run `git fetch` and compare with `origin/main` before starting: a stale clone once hid twelve live commits, including schema columns that a deploy from it would have tried to drop.
 - Schema changes must be additive (new tables, nullable columns, columns with defaults). Production start runs `prisma db push` without `--accept-data-loss`, so a destructive change aborts the deploy instead of dropping data; never run `npm run db:push` against production.
 
 ## Build quirks

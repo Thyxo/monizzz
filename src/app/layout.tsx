@@ -28,9 +28,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="da" suppressHydrationWarning>
-      <head>
-        <link rel="apple-touch-icon" href="/icon-192.png" />
-      </head>
       <body className="antialiased">
         {/* Paint the saved background before the app loads, so a light theme does not flash dark. */}
         <Script id="saved-theme" strategy="beforeInteractive">

@@ -17,6 +17,12 @@ export const POST = open('Register', async (request) => {
   const token = await createToken(user.id, user.username);
   return {
     token,
-    user: { id: user.id, username: user.username, themeAccentColor: user.themeAccentColor, themeBgColor: user.themeBgColor },
+    user: {
+      id: user.id,
+      username: user.username,
+      themeAccentColor: user.themeAccentColor,
+      themeBgColor: user.themeBgColor,
+      greetingStyle: user.greetingStyle,
+    },
   };
 });

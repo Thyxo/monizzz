@@ -12,6 +12,7 @@ export type RuleSchedule = {
   frequency: string; // daily, weekly, monthly
   interval: number;
   dayOfMonth: number;
+  dayOfWeek: number | null; // 1=Monday ... 7=Sunday
   anchorDate: Date | null;
   lastRunAt: Date | null;
   startFrom: Date;
@@ -37,6 +38,10 @@ function fromDayNumber(n: number): Ymd {
   const date = new Date(n * 86400000);
   return { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() };
 }
+// Day 0 (1970-01-01) was a Thursday. 1=Monday ... 7=Sunday.
+const weekdayOfDay = (n: number) => ((((n + 3) % 7) + 7) % 7) + 1;
+const weekStart = (n: number) => n - (weekdayOfDay(n) - 1);
+export const isoWeekday = (ymd: Ymd) => weekdayOfDay(dayNumber(ymd));
 
 // 07:00 UTC is morning in Copenhagen all year, so the booking lands on the due day.
 export const ymdToDate = ({ y, m, d }: Ymd) => new Date(Date.UTC(y, m - 1, d, 7, 0, 0));
@@ -57,7 +62,11 @@ function* occurrencesFrom(rule: RuleSchedule, lower: Ymd): Generator<Ymd> {
   const start = toYmd(rule.startFrom);
 
   if (rule.frequency === 'daily' || rule.frequency === 'weekly') {
-    const anchorDay = dayNumber(rule.anchorDate ? toYmd(rule.anchorDate) : start);
+    let anchorDay = dayNumber(rule.anchorDate ? toYmd(rule.anchorDate) : start);
+    if (!rule.anchorDate && rule.frequency === 'weekly') {
+      // Without an anchor a weekly rule repeats on dayOfWeek, from the first such day it could book.
+      anchorDay += ((rule.dayOfWeek || 1) - weekdayOfDay(anchorDay) + 7) % 7;
+    }
     const days = rule.frequency === 'weekly' ? 7 * step : step;
     for (let k = Math.max(0, Math.ceil((dayNumber(lower) - anchorDay) / days)); ; k++) {
       yield fromDayNumber(anchorDay + k * days);
@@ -86,9 +95,14 @@ function* unbooked(rule: RuleSchedule): Generator<Ymd> {
   const lower = afterLast && key(afterLast) > key(start) ? afterLast : start;
 
   for (const occurrence of occurrencesFrom(rule, lower)) {
-    // Before anchorDate existed, lastRunAt was the moment the rule ran, which could be a day
-    // off its due date. One booking per calendar month keeps those rules from booking twice.
-    if (!rule.anchorDate && last && occurrence.y === last.y && occurrence.m === last.m) continue;
+    if (!rule.anchorDate && last) {
+      // Before anchors existed, lastRunAt was the moment the rule ran rather than its due date,
+      // and a rule booked at most once per calendar week or month. Keeping that limit means a
+      // rule that already ran in a period can never book a second time in it.
+      const sameWeek = weekStart(dayNumber(occurrence)) === weekStart(dayNumber(last));
+      const sameMonth = occurrence.y === last.y && occurrence.m === last.m;
+      if (rule.frequency === 'weekly' ? sameWeek : rule.frequency !== 'daily' && sameMonth) continue;
+    }
     yield occurrence;
   }
 }

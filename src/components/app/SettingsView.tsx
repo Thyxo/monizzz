@@ -1,13 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, Download, LogOut, Play, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, ChevronDown, Download, LogOut, Play, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store';
 import { api, type RuleInput } from '@/lib/api';
 import { clearCache, useAccounts, useAction, useCategories, useOnline, useRules } from '@/lib/queries';
 import { downloadCsv, transactionsToCsv } from '@/lib/csv';
-import { formatAmount, formatUpcoming, fromYmd, intervalText, parseAmount, scheduleText, toDateInput } from '@/lib/format';
+import {
+  DEFAULT_GREETING,
+  formatAmount,
+  formatUpcoming,
+  fromYmd,
+  intervalText,
+  parseAmount,
+  scheduleText,
+  toDateInput,
+} from '@/lib/format';
 import { ConfirmSheet, Header, Segmented, Sheet } from '@/components/app/ui';
 
 const colorPresets = [
@@ -19,6 +28,17 @@ const colorPresets = [
   { accent: '#f59e0b', bg: '#f8fafc', label: 'Amber Light' },
   { accent: '#ec4899', bg: '#f8fafc', label: 'Rose Light' },
   { accent: '#0ea5e9', bg: '#0f172a', label: 'Ocean' },
+];
+
+const greetingPresets = [
+  'Hej, {navn}',
+  'Godmorgen, {navn}',
+  'Goddag, {navn}',
+  'Halløj, {navn}',
+  'Yo {navn}!',
+  'Kære {navn}',
+  'Hvad så, {navn}?',
+  'Velkommen tilbage, {navn}',
 ];
 
 type RuleDraft = {
@@ -67,6 +87,23 @@ function draftSummary(draft: RuleDraft): string {
   return `Bogføres ${formatUpcoming(draft.nextDate)} og derefter ${repeat.charAt(0).toLowerCase()}${repeat.slice(1)}.`;
 }
 
+// A settings section that stays folded until its title is tapped.
+function Collapsible({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-6">
+      <button className="flex w-full items-center justify-between py-1" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="label">{title}</span>
+        <ChevronDown
+          size={16}
+          style={{ color: 'var(--fg-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+        />
+      </button>
+      {open && <div className="mt-3">{children}</div>}
+    </div>
+  );
+}
+
 export default function SettingsView() {
   const { user, setUser, logout } = useAppStore();
   const online = useOnline();
@@ -76,6 +113,7 @@ export default function SettingsView() {
 
   const [accentColor, setAccentColor] = useState(user?.themeAccentColor || '#10b981');
   const [bgColor, setBgColor] = useState(user?.themeBgColor || '#0a0a0a');
+  const [greetingStyle, setGreetingStyle] = useState(user?.greetingStyle || DEFAULT_GREETING);
   const [draft, setDraft] = useState<RuleDraft | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -83,6 +121,12 @@ export default function SettingsView() {
   const themeChanged = accentColor !== user?.themeAccentColor || bgColor !== user?.themeBgColor;
   const saveTheme = useAction(() => api.settings.update({ themeAccentColor: accentColor, themeBgColor: bgColor }), {
     success: 'Tema gemt',
+    onDone: (data) => setUser(data.user),
+  });
+
+  const greetingChanged = greetingStyle.trim() !== (user?.greetingStyle || DEFAULT_GREETING);
+  const saveGreeting = useAction(() => api.settings.update({ greetingStyle: greetingStyle.trim() }), {
+    success: 'Hilsen gemt',
     onDone: (data) => setUser(data.user),
   });
 
@@ -153,45 +197,78 @@ export default function SettingsView() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header title="Indstillinger" />
       <div className="scroll-area px-4 pb-6">
-        <p className="label mb-3">Tema</p>
-        <div className="mb-4 grid grid-cols-4 gap-2">
-          {colorPresets.map((preset) => {
-            const active = accentColor === preset.accent && bgColor === preset.bg;
-            return (
+        <Collapsible title="Tema">
+          <div className="mb-4 grid grid-cols-4 gap-2">
+            {colorPresets.map((preset) => {
+              const active = accentColor === preset.accent && bgColor === preset.bg;
+              return (
+                <button
+                  key={preset.label}
+                  onClick={() => {
+                    setAccentColor(preset.accent);
+                    setBgColor(preset.bg);
+                  }}
+                  className="pressable rounded-xl p-2 text-center text-xs"
+                  style={{
+                    backgroundColor: preset.bg,
+                    border: `2px solid ${active ? preset.accent : 'var(--border)'}`,
+                    color: preset.accent,
+                  }}
+                >
+                  <div className="mx-auto mb-1 h-6 w-6 rounded-full" style={{ backgroundColor: preset.accent }} />
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mb-4 flex gap-6">
+            <label className="flex items-center gap-3 text-sm" style={{ color: 'var(--fg-muted)' }}>
+              Accent
+              <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="h-10 w-10 cursor-pointer rounded-lg border-0 bg-transparent" />
+            </label>
+            <label className="flex items-center gap-3 text-sm" style={{ color: 'var(--fg-muted)' }}>
+              Baggrund
+              <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="h-10 w-10 cursor-pointer rounded-lg border-0 bg-transparent" />
+            </label>
+          </div>
+          <button className="btn btn-accent w-full" disabled={!themeChanged || saveTheme.isPending || !online} onClick={() => saveTheme.mutate(undefined)}>
+            {saveTheme.isPending ? 'Gemmer...' : 'Gem tema'}
+          </button>
+        </Collapsible>
+
+        <Collapsible title="Hilsen">
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            {greetingPresets.map((preset) => (
               <button
-                key={preset.label}
-                onClick={() => {
-                  setAccentColor(preset.accent);
-                  setBgColor(preset.bg);
-                }}
-                className="pressable rounded-xl p-2 text-center text-xs"
+                key={preset}
+                onClick={() => setGreetingStyle(preset)}
+                className="pressable rounded-xl px-3 py-2 text-left text-sm"
                 style={{
-                  backgroundColor: preset.bg,
-                  border: `2px solid ${active ? preset.accent : 'var(--border)'}`,
-                  color: preset.accent,
+                  backgroundColor: 'var(--card)',
+                  border: `2px solid ${greetingStyle === preset ? 'var(--accent)' : 'var(--border)'}`,
                 }}
               >
-                <div className="mx-auto mb-1 h-6 w-6 rounded-full" style={{ backgroundColor: preset.accent }} />
-                {preset.label}
+                {preset.replace('{navn}', user?.username || 'dig')}
               </button>
-            );
-          })}
-        </div>
-        <div className="mb-4 flex gap-6">
-          <label className="flex items-center gap-3 text-sm" style={{ color: 'var(--fg-muted)' }}>
-            Accent
-            <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="h-10 w-10 cursor-pointer rounded-lg border-0 bg-transparent" />
-          </label>
-          <label className="flex items-center gap-3 text-sm" style={{ color: 'var(--fg-muted)' }}>
-            Baggrund
-            <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="h-10 w-10 cursor-pointer rounded-lg border-0 bg-transparent" />
-          </label>
-        </div>
-        <button className="btn btn-accent w-full" disabled={!themeChanged || saveTheme.isPending || !online} onClick={() => saveTheme.mutate(undefined)}>
-          {saveTheme.isPending ? 'Gemmer...' : 'Gem tema'}
-        </button>
+            ))}
+          </div>
+          <input
+            className="field mb-3"
+            maxLength={60}
+            placeholder="Egen hilsen, brug {navn} for dit brugernavn"
+            value={greetingStyle}
+            onChange={(e) => setGreetingStyle(e.target.value)}
+          />
+          <button
+            className="btn btn-accent w-full"
+            disabled={!greetingStyle.trim() || !greetingChanged || saveGreeting.isPending || !online}
+            onClick={() => saveGreeting.mutate(undefined)}
+          >
+            {saveGreeting.isPending ? 'Gemmer...' : 'Gem hilsen'}
+          </button>
+        </Collapsible>
 
-        <div className="mb-3 mt-8 flex items-center justify-between">
+        <div className="mb-3 mt-2 flex items-center justify-between">
           <p className="label">Automatiske regler</p>
           <button
             aria-label="Ny regel"

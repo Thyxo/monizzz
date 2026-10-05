@@ -5,8 +5,9 @@ import { Drawer } from 'vaul';
 import { ArrowLeftRight, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
 import { addMonths } from 'date-fns';
 import { UNCATEGORISED, categoryIcon } from '@/lib/icons';
-import { formatAmountShort, formatMonth, txKind, txTitle } from '@/lib/format';
+import { accountColor, formatAmountShort, formatMonth, txKind, txTitle } from '@/lib/format';
 import { tint } from '@/lib/theme';
+import AccountIcon from '@/components/app/AccountIcon';
 
 /** Bottom sheet that can be dragged down to close. */
 export function Sheet({
@@ -172,6 +173,19 @@ export function CategoryIcon({ category, size = 40 }: { category?: { color: stri
       style={{ width: size, height: size, backgroundColor: color, color: '#fff' }}
     >
       {createElement(categoryIcon(icon), { size: size * 0.5 })}
+    </div>
+  );
+}
+
+/** The icon tile for an account, coloured by its type. */
+export function AccountBadge({ type, size = 44 }: { type: string; size?: number }) {
+  const color = accountColor(type);
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center rounded-xl"
+      style={{ width: size, height: size, backgroundColor: tint(color, 0.15) }}
+    >
+      <AccountIcon type={type} color={color} size={Math.round(size * 0.45)} />
     </div>
   );
 }

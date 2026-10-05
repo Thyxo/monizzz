@@ -18,6 +18,7 @@ export type User = {
   username: string;
   themeAccentColor: string;
   themeBgColor: string;
+  greetingStyle: string;
 };
 
 export type EntryKind = 'expense' | 'income' | 'transfer';

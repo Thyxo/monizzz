@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
 import {
@@ -22,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useAppStore, type Tab } from '@/store';
 import { HttpError, api, setUnauthorizedHandler } from '@/lib/api';
-import { PERSIST_KEY, PERSIST_MAX_AGE, clearCache, queryClient, useOnline } from '@/lib/queries';
+import { clearCache, queryClient, useOnline } from '@/lib/queries';
 import { applyTheme, isDark } from '@/lib/theme';
 import LoginPage from '@/components/auth/LoginPage';
 import HomeView from '@/components/app/HomeView';
@@ -35,11 +34,6 @@ import CalculatorView from '@/components/app/CalculatorView';
 import CategoriesView from '@/components/app/CategoriesView';
 import SettingsView from '@/components/app/SettingsView';
 import TransactionSheet from '@/components/app/TransactionSheet';
-
-const persister = createSyncStoragePersister({
-  storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-  key: PERSIST_KEY,
-});
 
 const mainTabs: { key: Tab; label: string; icon: LucideIcon }[] = [
   { key: 'home', label: 'Hjem', icon: House },
@@ -72,12 +66,9 @@ const fabTabs: Tab[] = ['home', 'transactions', 'overview', 'calendar'];
 
 export default function Home() {
   return (
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{ persister, maxAge: PERSIST_MAX_AGE, buster: process.env.NEXT_PUBLIC_BUILD_ID }}
-    >
+    <QueryClientProvider client={queryClient}>
       <App />
-    </PersistQueryClientProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -214,7 +205,7 @@ function Shell() {
               <motion.div
                 className="pointer-events-auto absolute right-3 w-56 overflow-hidden rounded-2xl p-1.5 shadow-2xl"
                 style={{
-                  bottom: 'calc(env(safe-area-inset-bottom) + 72px)',
+                  bottom: 'calc(env(safe-area-inset-bottom) + 84px)',
                   backgroundColor: 'var(--sheet)',
                   border: '1px solid var(--border)',
                   transformOrigin: 'bottom right',
@@ -248,12 +239,14 @@ function Shell() {
       </AnimatePresence>
 
       <nav
-        className="relative z-50 flex shrink-0 items-stretch border-t"
+        className="relative z-50 flex shrink-0 items-stretch border-t px-1 pt-1.5"
         style={{
           backgroundColor: 'var(--sheet)',
           borderColor: 'var(--border)',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-          minHeight: '60px',
+          // The extra 16px keeps the icons clear of the screen edge and the iPhone home indicator.
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
+          minHeight: '64px',
+          boxShadow: '0 -8px 24px -12px rgba(0,0,0,0.35)',
         }}
       >
         {mainTabs.map(({ key, label, icon: Icon }) => (
@@ -280,10 +273,13 @@ function NavButton({ label, icon: Icon, active, onClick }: { label: string; icon
   return (
     <button
       onClick={onClick}
-      className="pressable flex flex-1 flex-col items-center justify-center gap-1 py-2"
-      style={{ color: active ? 'var(--accent)' : 'var(--fg-muted)' }}
+      className="pressable flex flex-1 flex-col items-center justify-center gap-1 rounded-xl py-1.5"
+      style={{
+        color: active ? 'var(--accent)' : 'var(--fg-muted)',
+        backgroundColor: active ? 'rgba(var(--accent-rgb), 0.12)' : 'transparent',
+      }}
     >
-      <Icon size={22} strokeWidth={active ? 2.4 : 2} />
+      <Icon size={20} strokeWidth={active ? 2.4 : 2} />
       <span className="text-[10px] font-medium leading-none">{label}</span>
     </button>
   );

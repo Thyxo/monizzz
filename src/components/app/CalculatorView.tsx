@@ -1,9 +1,8 @@
 'use client';
 
-import { Delete } from 'lucide-react';
+import { ArrowRight, Delete } from 'lucide-react';
 import { useAppStore, useCalculatorStore } from '@/store';
 import { useOnline } from '@/lib/queries';
-import { Header } from '@/components/app/ui';
 
 // The store keeps numbers with '.'; the comma only exists on screen.
 const show = (value: string) => value.replace('.', ',');
@@ -70,13 +69,18 @@ export default function CalculatorView() {
       note: 'Fra lommeregner',
     });
 
-  const numberStyle = { backgroundColor: 'var(--card)', color: 'var(--fg)', border: '1px solid var(--border)' };
+  const numberStyle = {
+    backgroundColor: 'var(--card)',
+    color: 'var(--fg)',
+    border: '1px solid var(--border)',
+    boxShadow: '0 2px 8px -5px rgba(0,0,0,0.35)',
+  };
   const softStyle = { backgroundColor: 'rgba(148,163,184,0.15)', color: 'var(--fg)' };
   const operatorStyle = (symbol: string) =>
     operator === symbol && resetNext
       ? { backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }
       : { ...softStyle, color: 'var(--accent)' };
-  const key = 'pressable h-16 rounded-2xl text-2xl font-semibold flex items-center justify-center';
+  const key = 'pressable flex items-center justify-center rounded-[18px] text-[26px] font-semibold';
 
   const digits = (numbers: number[]) =>
     numbers.map((n) => (
@@ -85,26 +89,34 @@ export default function CalculatorView() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <Header title="Lommeregner" />
+      <div className="shrink-0 px-4 pb-2" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.5rem)' }}>
+        <button
+          className="pressable flex h-[84px] w-full items-center justify-center gap-1.5 rounded-xl text-sm font-semibold"
+          style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
+          disabled={!online || !value}
+          onClick={send}
+        >
+          Send til konto
+          <ArrowRight size={15} />
+        </button>
+      </div>
 
-      <div className="flex flex-1 flex-col justify-end px-4 pb-2">
+      <div className="shrink-0 px-4 pb-2 pt-4">
         <p className="h-5 truncate text-right text-sm" style={{ color: 'var(--fg-muted)' }}>
           {previous !== null && operator ? `${show(previous)} ${operator}` : ''}
         </p>
-        <div className="truncate py-2 text-right font-bold" style={{ fontSize: display.length > 10 ? '2.25rem' : '3.25rem', lineHeight: 1.1 }}>
+        <div className="truncate py-2 text-right font-bold" style={{ fontSize: display.length > 10 ? '2.25rem' : '3rem', lineHeight: 1.1 }}>
           {show(display)}
         </div>
       </div>
 
-      <div className="shrink-0 px-4 pb-3">
-        <button className="btn btn-accent w-full" disabled={!online || !value} onClick={send}>
-          Send til konto →
-        </button>
-      </div>
-
-      <div className="grid shrink-0 grid-cols-4 gap-2 px-4 pb-4">
+      {/* Rows are 78px when there is room and shrink together on short screens. */}
+      <div
+        className="grid min-h-0 flex-1 grid-cols-4 content-start gap-2.5 px-4 pb-4"
+        style={{ gridTemplateRows: 'repeat(5, minmax(0, 78px))' }}
+      >
         <button onClick={clear} className={key} style={softStyle}>C</button>
-        <button onClick={backspace} aria-label="Slet tegn" className={key} style={softStyle}><Delete size={24} /></button>
+        <button onClick={backspace} aria-label="Slet tegn" className={key} style={softStyle}><Delete size={26} /></button>
         <button onClick={negate} className={key} style={softStyle}>±</button>
         <button onClick={() => applyOperator('÷')} className={key} style={operatorStyle('÷')}>÷</button>
 

@@ -6,7 +6,16 @@ import { useAppStore } from '@/store';
 import { api } from '@/lib/api';
 import { useAccounts, useAction, useOnline, useTransactions } from '@/lib/queries';
 import { ACCOUNT_TYPE_LABELS, formatAmount, parseAmount } from '@/lib/format';
-import { ConfirmSheet, Empty, Header, IconButton, Sheet, SkeletonList, TransactionRow } from '@/components/app/ui';
+import {
+  AccountBadge,
+  ConfirmSheet,
+  Empty,
+  Header,
+  IconButton,
+  Sheet,
+  SkeletonList,
+  TransactionRow,
+} from '@/components/app/ui';
 
 const PAGE = 50;
 
@@ -89,8 +98,9 @@ function AccountList({ accounts, loading, onOpen }: { accounts: any[]; loading: 
             <div className="space-y-2">
               {accounts.map((account) => (
                 <button key={account.id} onClick={() => onOpen(account.id)} className="card pressable w-full p-4 text-left">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
+                  <div className="flex items-center gap-3">
+                    <AccountBadge type={account.type} />
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{account.name}</p>
                       <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
                         {ACCOUNT_TYPE_LABELS[account.type] || account.type}

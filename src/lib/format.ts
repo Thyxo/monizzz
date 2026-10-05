@@ -96,10 +96,26 @@ export function txTitle(tx: any): string {
 }
 
 export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
-  standard: 'Standard',
-  custom: 'Standard',
+  standard: 'Konto',
+  custom: 'Konto',
   opsparing: 'Opsparing',
-  monizz: 'Monizz',
+  monizz: 'Lommepenge',
   donation: 'Donation',
   goal_savings: 'Mål-konto',
 };
+
+const ACCOUNT_TYPE_COLORS: Record<string, string> = {
+  opsparing: '#10b981',
+  monizz: '#fbbf24',
+  donation: '#ef4444',
+  goal_savings: '#a855f7',
+};
+
+export const accountColor = (type: string) => ACCOUNT_TYPE_COLORS[type] || '#94a3b8';
+
+export const DEFAULT_GREETING = 'Hej, {navn}';
+
+/** The user's greeting for the home screen, with "{navn}" filled in. */
+export function greeting(user: { username: string; greetingStyle?: string } | null): string {
+  return (user?.greetingStyle || DEFAULT_GREETING).replace('{navn}', user?.username || '');
+}

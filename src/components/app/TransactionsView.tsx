@@ -144,20 +144,20 @@ export default function TransactionsView() {
               ]}
             />
             <div className="grid grid-cols-3 gap-2">
-              <select className="field text-sm" style={{ padding: '0.6rem 0.75rem' }} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+              <select className="field text-sm" style={{ padding: '0.6rem 2rem 0.6rem 0.75rem', backgroundPosition: 'right 0.5rem center' }} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
                 <option value="">Alle konti</option>
                 {accounts.map((account) => (
                   <option key={account.id} value={account.id}>{account.name}</option>
                 ))}
               </select>
-              <select className="field text-sm" style={{ padding: '0.6rem 0.75rem' }} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+              <select className="field text-sm" style={{ padding: '0.6rem 2rem 0.6rem 0.75rem', backgroundPosition: 'right 0.5rem center' }} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
                 <option value="">Alle kategorier</option>
                 <option value="none">Ukategoriseret</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>{category.name}</option>
                 ))}
               </select>
-              <select className="field text-sm" style={{ padding: '0.6rem 0.75rem' }} value={period} onChange={(e) => setPeriod(e.target.value)}>
+              <select className="field text-sm" style={{ padding: '0.6rem 2rem 0.6rem 0.75rem', backgroundPosition: 'right 0.5rem center' }} value={period} onChange={(e) => setPeriod(e.target.value)}>
                 <option value="all">Al tid</option>
                 <option value="month">Denne måned</option>
                 <option value="last">Sidste måned</option>

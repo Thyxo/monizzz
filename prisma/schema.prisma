@@ -13,6 +13,7 @@ model User {
   passwordHash     String
   themeAccentColor String   @default("#6366f1")
   themeBgColor     String   @default("#0f0f0f")
+  greetingStyle    String   @default("Hej, {navn}")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -86,12 +87,13 @@ model AutoTransferRule {
   userId            String
   name              String
   amount            Float
-  dayOfMonth        Int      @default(1)
   // The rule books every `interval` days, weeks or months.
   frequency         String   @default("monthly") // daily, weekly, monthly
   interval          Int      @default(1)
-  // Date of the first booking under the current schedule. Null on rules from
-  // before schedules existed; those are monthly on dayOfMonth.
+  dayOfMonth        Int      @default(1)
+  dayOfWeek         Int?     // 1=Monday, 7=Sunday
+  // Date of the first booking under the current schedule. Null on rules from before
+  // anchors existed; those are monthly on dayOfMonth or weekly on dayOfWeek.
   anchorDate        DateTime?
   sourceAccountId   String?
   destAccountId     String?
