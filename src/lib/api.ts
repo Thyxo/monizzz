@@ -1,71 +1,127 @@
 const BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 
-function getHeaders(): HeadersInit {
-  const token = localStorage.getItem('monizzz_token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
+export const TOKEN_KEY = 'monizzz_token';
+
+let onUnauthorized: () => void = () => {};
+// The store registers its logout here so an expired session returns to the login screen without a reload.
+export function setUnauthorizedHandler(handler: () => void) {
+  onUnauthorized = handler;
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (res.status === 401) {
-    localStorage.removeItem('monizzz_token');
-    window.location.reload();
-    throw new Error('Unauthorized');
+export class HttpError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
   }
+}
+
+async function request<T = any>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const res = await fetch(`${BASE}${path}`, {
+    method: options.method || 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+  });
 
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
     const text = await res.text();
     const preview = text.replace(/\s+/g, ' ').slice(0, 120);
-    throw new Error(`API svarer ikke med JSON (${res.status} ${res.statusText}) fra ${res.url}. Svar: ${preview}`);
+    throw new HttpError(res.status, `API svarer ikke med JSON (${res.status} ${res.statusText}) fra ${res.url}. Svar: ${preview}`);
   }
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Unknown error');
+  if (res.status === 401 && token && !path.startsWith('/api/auth/login')) {
+    onUnauthorized();
+  }
+  if (!res.ok) throw new HttpError(res.status, data.error || 'Ukendt fejl');
   return data as T;
 }
+
+function query(params: Record<string, string | number | null | undefined>) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') search.set(key, String(value));
+  }
+  const text = search.toString();
+  return text ? `?${text}` : '';
+}
+
+export type TransactionFilter = {
+  accountId?: string;
+  categoryId?: string;
+  kind?: 'income' | 'expense' | 'transfer' | '';
+  q?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+};
 
 export const api = {
   auth: {
     login: (username: string, password: string) =>
-      fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ username, password }) }).then((r) => handleResponse<{ token: string; user: any }>(r)),
+      request<{ token: string; user: any }>('/api/auth/login', { method: 'POST', body: { username, password } }),
     register: (username: string, password: string) =>
-      fetch(`${BASE}/api/auth/register`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ username, password }) }).then((r) => handleResponse<{ token: string; user: any }>(r)),
-    me: () => fetch(`${BASE}/api/auth/me`, { headers: getHeaders() }).then((r) => handleResponse<{ user: any }>(r)),
+      request<{ token: string; user: any }>('/api/auth/register', { method: 'POST', body: { username, password } }),
+    me: () => request<{ user: any }>('/api/auth/me'),
   },
   accounts: {
-    list: () => fetch(`${BASE}/api/accounts`, { headers: getHeaders() }).then((r) => handleResponse<{ accounts: any[] }>(r)),
+    list: () => request<{ accounts: any[] }>('/api/accounts'),
     create: (data: { name: string; type: string; balance?: number; targetAmount?: number }) =>
-      fetch(`${BASE}/api/accounts`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(data) }).then((r) => handleResponse<{ account: any }>(r)),
-    delete: (id: string) => fetch(`${BASE}/api/accounts?id=${id}`, { method: 'DELETE', headers: getHeaders() }).then((r) => handleResponse<any>(r)),
-    addBalance: (accountId: string, amount: number, note?: string) =>
-      fetch(`${BASE}/api/accounts/add-balance`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ accountId, amount, note }) }).then((r) => handleResponse<any>(r)),
-    transfer: (sourceAccountId: string, destAccountId: string, amount: number, note?: string) =>
-      fetch(`${BASE}/api/accounts/transfer`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ sourceAccountId, destAccountId, amount, note }) }).then((r) => handleResponse<any>(r)),
+      request<{ account: any }>('/api/accounts', { method: 'POST', body: data }),
+    rename: (id: string, name: string) => request<{ account: any }>('/api/accounts', { method: 'PUT', body: { id, name } }),
+    delete: (id: string) => request(`/api/accounts?id=${id}`, { method: 'DELETE' }),
+    transfer: (data: { sourceAccountId: string; destAccountId: string; amount: number; note?: string; date?: string }) =>
+      request('/api/accounts/transfer', { method: 'POST', body: data }),
   },
   transactions: {
-    list: (accountId: string, limit?: number, offset?: number) =>
-      fetch(`${BASE}/api/transactions?accountId=${accountId}&limit=${limit || 50}&offset=${offset || 0}`, { headers: getHeaders() }).then((r) => handleResponse<{ transactions: any[]; total: number }>(r)),
+    list: (filter: TransactionFilter) =>
+      request<{ transactions: any[]; total: number }>(`/api/transactions${query(filter)}`),
+    create: (data: { accountId: string; amount: number; note?: string; categoryId?: string | null; date?: string }) =>
+      request<{ account: any; transaction: any }>('/api/transactions', { method: 'POST', body: data }),
+    update: (data: { id: string; amount?: number; note?: string | null; categoryId?: string | null; date?: string }) =>
+      request<{ transaction: any }>('/api/transactions', { method: 'PUT', body: data }),
+    delete: (id: string) => request(`/api/transactions?id=${id}`, { method: 'DELETE' }),
+  },
+  categories: {
+    list: () => request<{ categories: any[] }>('/api/categories'),
+    create: (data: { name: string; kind: string; color: string; icon: string }) =>
+      request<{ category: any }>('/api/categories', { method: 'POST', body: data }),
+    update: (data: { id: string; name?: string; color?: string; icon?: string; sortOrder?: number }) =>
+      request<{ category: any }>('/api/categories', { method: 'PUT', body: data }),
+    delete: (id: string) => request(`/api/categories?id=${id}`, { method: 'DELETE' }),
   },
   goals: {
     update: (accountId: string, targetAmount: number) =>
-      fetch(`${BASE}/api/goals`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ accountId, targetAmount }) }).then((r) => handleResponse<{ goal: any }>(r)),
+      request<{ goal: any }>('/api/goals', { method: 'PUT', body: { accountId, targetAmount } }),
   },
   settings: {
-    get: () => fetch(`${BASE}/api/settings`, { headers: getHeaders() }).then((r) => handleResponse<{ user: any }>(r)),
     update: (data: { themeAccentColor?: string; themeBgColor?: string }) =>
-      fetch(`${BASE}/api/settings`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(data) }).then((r) => handleResponse<{ user: any }>(r)),
+      request<{ user: any }>('/api/settings', { method: 'PUT', body: data }),
   },
   autoRules: {
-    list: () => fetch(`${BASE}/api/auto-rules`, { headers: getHeaders() }).then((r) => handleResponse<{ rules: any[] }>(r)),
-    create: (data: { name: string; amount: number; dayOfMonth?: number; sourceAccountId?: string; destAccountId?: string }) =>
-      fetch(`${BASE}/api/auto-rules`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(data) }).then((r) => handleResponse<{ rule: any }>(r)),
-    update: (data: { id: string; name?: string; amount?: number; dayOfMonth?: number; sourceAccountId?: string | null; destAccountId?: string | null }) =>
-      fetch(`${BASE}/api/auto-rules`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(data) }).then((r) => handleResponse<{ rule: any }>(r)),
-    delete: (id: string) => fetch(`${BASE}/api/auto-rules?id=${id}`, { method: 'DELETE', headers: getHeaders() }).then((r) => handleResponse<any>(r)),
+    list: () => request<{ rules: any[] }>('/api/auto-rules'),
+    create: (data: {
+      name: string;
+      amount: number;
+      dayOfMonth?: number;
+      sourceAccountId?: string | null;
+      destAccountId?: string | null;
+      categoryId?: string | null;
+    }) => request<{ rule: any }>('/api/auto-rules', { method: 'POST', body: data }),
+    update: (data: {
+      id: string;
+      name?: string;
+      amount?: number;
+      dayOfMonth?: number;
+      sourceAccountId?: string | null;
+      destAccountId?: string | null;
+      categoryId?: string | null;
+    }) => request<{ rule: any }>('/api/auto-rules', { method: 'PUT', body: data }),
+    delete: (id: string) => request(`/api/auto-rules?id=${id}`, { method: 'DELETE' }),
+    run: () => request<{ results: { rule: string; date: string; status: string }[] }>('/api/auto-rules/run', { method: 'POST' }),
   },
-  seed: () => fetch(`${BASE}/api/seed`, { method: 'POST' }).then((r) => handleResponse<any>(r)),
-  cronRun: () => fetch(`${BASE}/api/cron/run`, { method: 'POST', headers: getHeaders() }).then((r) => handleResponse<any>(r)),
 };

@@ -1,89 +1,49 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { ApiError, authed, parseBody, requireParam } from '@/lib/route';
+import { accountCreateSchema, accountUpdateSchema } from '@/lib/validation';
 
-export async function GET(request: NextRequest) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Ikke logget ind' }, { status: 401 });
-    }
+export const GET = authed('Get accounts', async (_request, user) => {
+  const accounts = await db.account.findMany({
+    where: { userId: user.userId },
+    include: { goal: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  return { accounts };
+});
 
-    const accounts = await db.account.findMany({
-      where: { userId: user.userId },
-      include: { goal: true },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    return NextResponse.json({ accounts });
-  } catch (error) {
-    console.error('Get accounts error:', error);
-    return NextResponse.json({ error: 'Der opstod en fejl' }, { status: 500 });
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Ikke logget ind' }, { status: 401 });
-    }
-
-    const { name, type, balance, targetAmount } = await request.json();
-
-    if (!name || !type) {
-      return NextResponse.json({ error: 'Navn og type kræves' }, { status: 400 });
-    }
-
+export const POST = authed(
+  'Create account',
+  async (request, user) => {
+    const { name, type, balance, targetAmount } = await parseBody(request, accountCreateSchema);
     const account = await db.account.create({
       data: {
         userId: user.userId,
         name,
-        type: type || 'custom',
+        type,
         balance: balance || 0,
-        ...(targetAmount && type === 'goal_savings'
-          ? { goal: { create: { targetAmount } } }
-          : {}),
+        ...(targetAmount && type === 'goal_savings' ? { goal: { create: { targetAmount } } } : {}),
       },
       include: { goal: true },
     });
+    return { account };
+  },
+  201,
+);
 
-    return NextResponse.json({ account }, { status: 201 });
-  } catch (error) {
-    console.error('Create account error:', error);
-    return NextResponse.json({ error: 'Der opstod en fejl' }, { status: 500 });
-  }
-}
+export const PUT = authed('Update account', async (request, user) => {
+  const { id, name } = await parseBody(request, accountUpdateSchema);
+  const existing = await db.account.findFirst({ where: { id, userId: user.userId } });
+  if (!existing) throw new ApiError(404, 'Konto ikke fundet');
+  const account = await db.account.update({ where: { id }, data: { name }, include: { goal: true } });
+  return { account };
+});
 
-export async function DELETE(request: NextRequest) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Ikke logget ind' }, { status: 401 });
-    }
+export const DELETE = authed('Delete account', async (request, user) => {
+  const id = requireParam(request, 'id', 'Konto ID kræves');
+  const account = await db.account.findFirst({ where: { id, userId: user.userId } });
+  if (!account) throw new ApiError(404, 'Konto ikke fundet');
 
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) {
-      return NextResponse.json({ error: ' Konto ID kræves' }, { status: 400 });
-    }
-
-    const account = await db.account.findFirst({
-      where: { id, userId: user.userId },
-    });
-    if (!account) {
-      return NextResponse.json({ error: 'Konto ikke fundet' }, { status: 404 });
-    }
-
-    await db.transaction.deleteMany({ where: { accountId: id } });
-    if (account.type === 'goal_savings') {
-      await db.goal.deleteMany({ where: { accountId: id } });
-    }
-    await db.account.delete({ where: { id } });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Delete account error:', error);
-    return NextResponse.json({ error: 'Der opstod en fejl' }, { status: 500 });
-  }
-}
+  // Transactions and goal go with the account (cascade); rules keep running without it (set null).
+  await db.account.delete({ where: { id } });
+  return { success: true };
+});

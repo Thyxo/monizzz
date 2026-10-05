@@ -1,401 +1,340 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { ArrowRight, Download, LogOut, Play, Plus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAppStore } from '@/store';
 import { api } from '@/lib/api';
-import { formatAmount } from '@/lib/format';
+import { clearCache, useAccounts, useAction, useCategories, useOnline, useRules } from '@/lib/queries';
+import { downloadCsv, transactionsToCsv } from '@/lib/csv';
+import { formatAmount, parseAmount, toDateInput } from '@/lib/format';
+import { ConfirmSheet, Header, Sheet } from '@/components/app/ui';
+
+const colorPresets = [
+  { accent: '#10b981', bg: '#0a0a0a', label: 'Emerald Night' },
+  { accent: '#f59e0b', bg: '#0a0a0a', label: 'Amber Night' },
+  { accent: '#ec4899', bg: '#0a0a0a', label: 'Rose Night' },
+  { accent: '#8b5cf6', bg: '#0a0a0a', label: 'Violet Night' },
+  { accent: '#10b981', bg: '#f8fafc', label: 'Emerald Light' },
+  { accent: '#f59e0b', bg: '#f8fafc', label: 'Amber Light' },
+  { accent: '#ec4899', bg: '#f8fafc', label: 'Rose Light' },
+  { accent: '#0ea5e9', bg: '#0f172a', label: 'Ocean' },
+];
+
+type RuleDraft = {
+  id?: string;
+  name: string;
+  amount: string;
+  day: string;
+  sourceAccountId: string;
+  destAccountId: string;
+  categoryId: string;
+};
+
+const shortDate = (date: Date) => date.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+
+// Mirrors pendingDueDates() in src/lib/auto-rules.ts closely enough to tell the user when a rule books next.
+function nextRun(rule: { dayOfMonth: number; lastRunAt: string | null; startFrom: string }): string {
+  const today = new Date();
+  const dueIn = (year: number, month: number) =>
+    new Date(year, month, Math.min(rule.dayOfMonth, new Date(year, month + 1, 0).getDate()));
+  const sameMonth = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+
+  let due = dueIn(today.getFullYear(), today.getMonth());
+  const start = new Date(rule.startFrom);
+  start.setHours(0, 0, 0, 0);
+  if ((rule.lastRunAt && sameMonth(new Date(rule.lastRunAt), today)) || due < start) {
+    due = dueIn(today.getFullYear(), today.getMonth() + 1);
+  }
+  return due <= today ? 'gang appen åbnes' : shortDate(due);
+}
+
+const emptyRule: RuleDraft = { name: '', amount: '', day: '1', sourceAccountId: '', destAccountId: '', categoryId: '' };
 
 export default function SettingsView() {
   const { user, setUser, logout } = useAppStore();
+  const online = useOnline();
+  const { accounts } = useAccounts();
+  const { categories } = useCategories();
+  const { rules } = useRules();
+
   const [accentColor, setAccentColor] = useState(user?.themeAccentColor || '#10b981');
   const [bgColor, setBgColor] = useState(user?.themeBgColor || '#0a0a0a');
-  const [saving, setSaving] = useState(false);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [rules, setRules] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showNewRule, setShowNewRule] = useState(false);
-  const [newRuleName, setNewRuleName] = useState('');
-  const [newRuleAmount, setNewRuleAmount] = useState('');
-  const [newRuleDay, setNewRuleDay] = useState('1');
-  const [newRuleSource, setNewRuleSource] = useState('');
-  const [newRuleDest, setNewRuleDest] = useState('');
-  const [ruleLoading, setRuleLoading] = useState(false);
-  const [cronStatus, setCronStatus] = useState<string | null>(null);
+  const [draft, setDraft] = useState<RuleDraft | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const themeChanged = accentColor !== user?.themeAccentColor || bgColor !== user?.themeBgColor;
+  const saveTheme = useAction(() => api.settings.update({ themeAccentColor: accentColor, themeBgColor: bgColor }), {
+    success: 'Tema gemt',
+    onDone: (data) => setUser(data.user),
+  });
+
+  const closeRule = () => {
+    setDraft(null);
+    setConfirmDelete(false);
+  };
+  const saveRule = useAction(
+    (d: RuleDraft) => {
+      const data = {
+        name: d.name.trim(),
+        amount: parseAmount(d.amount),
+        dayOfMonth: parseInt(d.day) || 1,
+        sourceAccountId: d.sourceAccountId || null,
+        destAccountId: d.destAccountId || null,
+        // A category only makes sense when money enters or leaves the system.
+        categoryId: d.sourceAccountId && d.destAccountId ? null : d.categoryId || null,
+      };
+      return d.id ? api.autoRules.update({ id: d.id, ...data }) : api.autoRules.create(data);
+    },
+    { success: 'Regel gemt', onDone: closeRule },
+  );
+  const deleteRule = useAction((id: string) => api.autoRules.delete(id), { success: 'Regel slettet', onDone: closeRule });
+  const runRules = useAction(() => api.autoRules.run(), {
+    onDone: ({ results }) => {
+      const booked = results.filter((result) => result.status !== 'error').length;
+      const failed = results.length - booked;
+      if (failed > 0) toast.error(`${failed} regel(er) kunne ikke bogføres`);
+      else if (booked > 0) toast.success(booked === 1 ? '1 postering bogført' : `${booked} posteringer bogført`);
+      else toast.info('Ingen regler er forfaldne lige nu');
+    },
+  });
+
+  const exportAll = async () => {
+    setExporting(true);
     try {
-      const [accData, rulesData] = await Promise.all([
-        api.accounts.list(),
-        api.autoRules.list(),
-      ]);
-      setAccounts(accData.accounts);
-      setRules(rulesData.rules);
-    } catch (err) {
-      console.error(err);
+      const data = await api.transactions.list({ limit: 5000 });
+      downloadCsv(`monizzz-${toDateInput(new Date())}.csv`, transactionsToCsv(data.transactions));
+      toast.success(`${data.transactions.length} transaktioner eksporteret`);
+    } catch (error: any) {
+      toast.error(error.message);
     } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const saveTheme = async () => {
-    setSaving(true);
-    try {
-      const data = await api.settings.update({ themeAccentColor: accentColor, themeBgColor: bgColor });
-      setUser(data.user);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setSaving(false);
+      setExporting(false);
     }
   };
 
-  const handleUpdateRule = async (rule: any) => {
-    setRuleLoading(true);
-    try {
-      const updated = await api.autoRules.update({
-        id: rule.id,
-        sourceAccountId: rule.sourceAccountId || null,
-        destAccountId: rule.destAccountId || null,
-        amount: rule.amount,
-        dayOfMonth: rule.dayOfMonth,
-        name: rule.name,
-      });
-      setRules(rules.map((r) => (r.id === updated.rule.id ? updated.rule : r)));
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setRuleLoading(false);
-    }
-  };
-
-  const handleDeleteRule = async (id: string) => {
-    if (!confirm('Slet denne regel?')) return;
-    setRuleLoading(true);
-    try {
-      await api.autoRules.delete(id);
-      setRules(rules.filter((r) => r.id !== id));
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setRuleLoading(false);
-    }
-  };
-
-  const handleCreateRule = async () => {
-    if (!newRuleName || !newRuleAmount) return;
-    setRuleLoading(true);
-    try {
-      const data = await api.autoRules.create({
-        name: newRuleName,
-        amount: parseFloat(newRuleAmount.replace(',', '.')),
-        dayOfMonth: parseInt(newRuleDay) || 1,
-        sourceAccountId: newRuleSource || undefined,
-        destAccountId: newRuleDest || undefined,
-      });
-      setRules([...rules, data.rule]);
-      setNewRuleName('');
-      setNewRuleAmount('');
-      setNewRuleDay('1');
-      setNewRuleSource('');
-      setNewRuleDest('');
-      setShowNewRule(false);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setRuleLoading(false);
-    }
-  };
-
-  const runCronManually = async () => {
-    try {
-      const data = await api.cronRun();
-      setCronStatus(`Kørte ${data.results.length} regler`);
-      await loadData();
-    } catch (err: any) {
-      setCronStatus(`Fejl: ${err.message}`);
-    }
-  };
-
-  const colorPresets = [
-    { accent: '#10b981', bg: '#0a0a0a', label: 'Emerald Night' },
-    { accent: '#f59e0b', bg: '#0a0a0a', label: 'Amber Night' },
-    { accent: '#ec4899', bg: '#0a0a0a', label: 'Rose Night' },
-    { accent: '#8b5cf6', bg: '#0a0a0a', label: 'Violet Night' },
-    { accent: '#10b981', bg: '#f8fafc', label: 'Emerald Light' },
-    { accent: '#f59e0b', bg: '#f8fafc', label: 'Amber Light' },
-    { accent: '#ec4899', bg: '#f8fafc', label: 'Rose Light' },
-    { accent: '#0ea5e9', bg: '#0f172a', label: 'Ocean' },
-  ];
-
-  const inputStyle: React.CSSProperties = {
-    backgroundColor: 'var(--bg)',
-    color: 'var(--fg)',
-    border: '1px solid var(--border)',
-  };
-
-  const sectionTitle: React.CSSProperties = {
-    color: 'var(--fg)',
-  };
-
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center" style={{ color: 'var(--fg-muted)' }}>
-        <div className="animate-pulse text-lg">Indlæser...</div>
-      </div>
-    );
-  }
+  const ruleValid =
+    draft &&
+    draft.name.trim() &&
+    parseAmount(draft.amount) > 0 &&
+    (draft.sourceAccountId || draft.destAccountId) &&
+    draft.sourceAccountId !== draft.destAccountId;
+  const draftKind = draft?.sourceAccountId && draft.destAccountId ? null : draft?.destAccountId ? 'income' : 'expense';
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 pt-6 pb-4" style={{ overscrollBehavior: 'contain' }}>
-      <h2 className="text-xl font-bold mb-6" style={sectionTitle}>Indstillinger</h2>
-
-      {/* Theme */}
-      <div className="mb-8">
-        <h3 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--fg-muted)' }}>
-          Tema
-        </h3>
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          {colorPresets.map((preset) => (
-            <button
-              key={preset.label}
-              onClick={() => { setAccentColor(preset.accent); setBgColor(preset.bg); }}
-              className="rounded-xl p-2 text-center text-xs active:scale-[0.95] transition-transform"
-              style={{
-                backgroundColor: preset.bg,
-                border: '2px solid',
-                borderColor: accentColor === preset.accent && bgColor === preset.bg
-                  ? preset.accent
-                  : 'var(--border)',
-                color: preset.accent,
-              }}
-            >
-              <div
-                className="w-6 h-6 rounded-full mx-auto mb-1"
-                style={{ backgroundColor: preset.accent }}
-              />
-              {preset.label}
-            </button>
-          ))}
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <Header title="Indstillinger" />
+      <div className="scroll-area px-4 pb-6">
+        <p className="label mb-3">Tema</p>
+        <div className="mb-4 grid grid-cols-4 gap-2">
+          {colorPresets.map((preset) => {
+            const active = accentColor === preset.accent && bgColor === preset.bg;
+            return (
+              <button
+                key={preset.label}
+                onClick={() => {
+                  setAccentColor(preset.accent);
+                  setBgColor(preset.bg);
+                }}
+                className="pressable rounded-xl p-2 text-center text-xs"
+                style={{
+                  backgroundColor: preset.bg,
+                  border: `2px solid ${active ? preset.accent : 'var(--border)'}`,
+                  color: preset.accent,
+                }}
+              >
+                <div className="mx-auto mb-1 h-6 w-6 rounded-full" style={{ backgroundColor: preset.accent }} />
+                {preset.label}
+              </button>
+            );
+          })}
         </div>
-        <div className="flex items-center gap-3 mb-3">
-          <label className="text-sm w-20" style={{ color: 'var(--fg-muted)' }}>Accent</label>
-          <input
-            type="color"
-            value={accentColor}
-            onChange={(e) => setAccentColor(e.target.value)}
-            className="w-10 h-10 rounded-lg cursor-pointer border-0"
-          />
-          <span className="text-xs font-mono" style={{ color: 'var(--fg-muted)' }}>{accentColor}</span>
+        <div className="mb-4 flex gap-6">
+          <label className="flex items-center gap-3 text-sm" style={{ color: 'var(--fg-muted)' }}>
+            Accent
+            <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="h-10 w-10 cursor-pointer rounded-lg border-0 bg-transparent" />
+          </label>
+          <label className="flex items-center gap-3 text-sm" style={{ color: 'var(--fg-muted)' }}>
+            Baggrund
+            <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="h-10 w-10 cursor-pointer rounded-lg border-0 bg-transparent" />
+          </label>
         </div>
-        <div className="flex items-center gap-3 mb-4">
-          <label className="text-sm w-20" style={{ color: 'var(--fg-muted)' }}>Baggrund</label>
-          <input
-            type="color"
-            value={bgColor}
-            onChange={(e) => setBgColor(e.target.value)}
-            className="w-10 h-10 rounded-lg cursor-pointer border-0"
-          />
-          <span className="text-xs font-mono" style={{ color: 'var(--fg-muted)' }}>{bgColor}</span>
-        </div>
-        <button
-          onClick={saveTheme}
-          disabled={saving}
-          className="w-full py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
-          style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
-        >
-          {saving ? 'Gemmer...' : 'Gem tema'}
+        <button className="btn btn-accent w-full" disabled={!themeChanged || saveTheme.isPending || !online} onClick={() => saveTheme.mutate(undefined)}>
+          {saveTheme.isPending ? 'Gemmer...' : 'Gem tema'}
         </button>
-      </div>
 
-      {/* Auto rules */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>
-            Automatiske regler
-          </h3>
+        <div className="mb-3 mt-8 flex items-center justify-between">
+          <p className="label">Automatiske regler</p>
           <button
-            onClick={() => setShowNewRule(true)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-sm active:scale-[0.95] transition-transform"
+            aria-label="Ny regel"
+            className="pressable flex h-8 w-8 items-center justify-center rounded-lg"
             style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
+            disabled={!online}
+            onClick={() => setDraft(emptyRule)}
           >
-            +
+            <Plus size={18} />
           </button>
         </div>
+        <p className="mb-3 text-xs" style={{ color: 'var(--fg-muted)' }}>
+          Regler bogføres automatisk hver måned på den valgte dag. Har appen ikke været åben, indhentes de næste gang, du åbner den.
+        </p>
 
-        {rules.map((rule) => (
-          <div
-            key={rule.id}
-            className="p-4 rounded-2xl mb-2"
-            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>{rule.name}</p>
-                <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
-                  {formatAmount(rule.amount)} d. {rule.dayOfMonth}. i måneden
-                </p>
-              </div>
-              <button
-                onClick={() => handleDeleteRule(rule.id)}
-                className="text-xs px-2 py-1 rounded-lg"
-                style={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' }}
-              >
-                Slet
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <select
-                value={rule.sourceAccountId || ''}
-                onChange={(e) => handleUpdateRule({ ...rule, sourceAccountId: e.target.value || null })}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none"
-                style={inputStyle}
-              >
-                <option value="">Ingen kilde</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name} ({formatAmount(a.balance)})</option>
-                ))}
-              </select>
-              <div className="flex items-center justify-center">
-                <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>→</span>
-              </div>
-              <select
-                value={rule.destAccountId || ''}
-                onChange={(e) => handleUpdateRule({ ...rule, destAccountId: e.target.value || null })}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none"
-                style={inputStyle}
-              >
-                <option value="">Ud af systemet (fx donation)</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name} ({formatAmount(a.balance)})</option>
-                ))}
-              </select>
-            </div>
+        {rules.length === 0 ? (
+          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>Ingen automatiske regler. Tryk + for at oprette en.</p>
+        ) : (
+          <div className="space-y-2">
+            {rules.map((rule) => {
+              const inactive = !rule.sourceAccountId && !rule.destAccountId;
+              return (
+                <button
+                  key={rule.id}
+                  disabled={!online}
+                  style={{ opacity: 1 }}
+                  onClick={() =>
+                    setDraft({
+                      id: rule.id,
+                      name: rule.name,
+                      amount: String(rule.amount).replace('.', ','),
+                      day: String(rule.dayOfMonth),
+                      sourceAccountId: rule.sourceAccountId || '',
+                      destAccountId: rule.destAccountId || '',
+                      categoryId: rule.categoryId || '',
+                    })
+                  }
+                  className="card pressable w-full p-4 text-left"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="truncate text-sm font-semibold">{rule.name}</p>
+                    <p className="shrink-0 text-sm font-bold">{formatAmount(rule.amount)}</p>
+                  </div>
+                  <p className="mt-1 flex items-center gap-1.5 truncate text-xs" style={{ color: 'var(--fg-muted)' }}>
+                    {rule.source?.name || 'Udefra'} <ArrowRight size={12} className="shrink-0" /> {rule.dest?.name || 'Ud af systemet'}
+                  </p>
+                  <p className="mt-1 text-xs" style={{ color: inactive ? 'var(--expense)' : 'var(--fg-muted)' }}>
+                    {inactive
+                      ? 'Inaktiv – vælg en konto'
+                      : `D. ${rule.dayOfMonth}. hver måned · næste ${nextRun(rule)}`}
+                  </p>
+                </button>
+              );
+            })}
+            <button className="btn btn-soft w-full" disabled={!online || runRules.isPending} onClick={() => runRules.mutate(undefined)}>
+              <Play size={16} /> {runRules.isPending ? 'Kører...' : 'Kør forfaldne regler nu'}
+            </button>
           </div>
-        ))}
-
-        {rules.length === 0 && !showNewRule && (
-          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
-            Ingen automatiske regler. Tryk + for at oprette en.
-          </p>
         )}
 
-        {/* Manual cron trigger */}
-        {rules.length > 0 && (
-          <button
-            onClick={runCronManually}
-            className="w-full mt-3 py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
-            style={{ backgroundColor: 'rgba(168,85,247,0.15)', color: '#a855f7' }}
-          >
-            Kør manuelle posteringer nu
-          </button>
-        )}
-        {cronStatus && (
-          <p className="text-xs mt-2 text-center" style={{ color: 'var(--fg-muted)' }}>{cronStatus}</p>
-        )}
-      </div>
+        <p className="label mb-3 mt-8">Data</p>
+        <button className="btn btn-soft w-full" disabled={!online || exporting} onClick={exportAll}>
+          <Download size={16} /> Eksportér alle transaktioner (CSV)
+        </button>
 
-      {/* New rule modal */}
-      {showNewRule && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowNewRule(false)}>
-          <div className="absolute inset-0 bg-black/60" />
-          <div
-            className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 max-h-[85vh] overflow-y-auto"
-            style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-bold mb-4" style={{ color: 'var(--fg)' }}>Ny automatisk regel</h3>
-            <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Navn (f.eks. Opsparing)"
-                value={newRuleName}
-                onChange={(e) => setNewRuleName(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-base outline-none"
-                style={inputStyle}
-                autoFocus
-              />
-              <input
-                type="text"
-                inputMode="decimal"
-                placeholder="Beløb (f.eks. 250)"
-                value={newRuleAmount}
-                onChange={(e) => setNewRuleAmount(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-base outline-none"
-                style={inputStyle}
-              />
-              <input
-                type="number"
-                placeholder="Dag i måneden (1-28)"
-                value={newRuleDay}
-                onChange={(e) => setNewRuleDay(e.target.value)}
-                min="1"
-                max="28"
-                className="w-full px-4 py-3 rounded-xl text-base outline-none"
-                style={inputStyle}
-              />
-              <select
-                value={newRuleSource}
-                onChange={(e) => setNewRuleSource(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-base outline-none appearance-none"
-                style={inputStyle}
-              >
-                <option value="">Ingen kilde-konto</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
-              <select
-                value={newRuleDest}
-                onChange={(e) => setNewRuleDest(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-base outline-none appearance-none"
-                style={inputStyle}
-              >
-                <option value="">Ud af systemet (fx donation)</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
-              <button
-                onClick={handleCreateRule}
-                disabled={ruleLoading || !newRuleName || !newRuleAmount}
-                className="w-full py-3 rounded-xl font-semibold active:scale-[0.98] transition-transform"
-                style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
-              >
-                Opret regel
-              </button>
-              <button
-                onClick={() => setShowNewRule(false)}
-                className="w-full py-2.5 rounded-xl text-sm"
-                style={{ color: 'var(--fg-muted)' }}
-              >
-                Annuller
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Account */}
-      <div className="mb-8">
-        <h3 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--fg-muted)' }}>
-          Konto
-        </h3>
-        <p className="text-sm mb-1" style={{ color: 'var(--fg)' }}>
-          Brugernavn: <strong>{user?.username}</strong>
+        <p className="label mb-3 mt-8">Bruger</p>
+        <p className="text-sm">
+          Logget ind som <strong>{user?.username}</strong>
         </p>
         <button
-          onClick={logout}
-          className="w-full mt-4 py-2.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-transform"
-          style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
+          className="btn btn-danger mt-4 w-full"
+          onClick={() => {
+            logout();
+            clearCache();
+          }}
         >
-          Log ud
+          <LogOut size={16} /> Log ud
         </button>
       </div>
+
+      <Sheet open={Boolean(draft)} onClose={closeRule} title={draft?.id ? 'Rediger regel' : 'Ny automatisk regel'}>
+        {draft && (
+          <div className="space-y-3">
+            <input
+              className="field"
+              placeholder="Navn (f.eks. Opsparing)"
+              maxLength={60}
+              value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            />
+            <div className="flex gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="label mb-1.5">Beløb</p>
+                <input
+                  className="field"
+                  inputMode="decimal"
+                  placeholder="250"
+                  value={draft.amount}
+                  onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
+                />
+              </div>
+              <div className="w-32 shrink-0">
+                <p className="label mb-1.5">Dag i måneden</p>
+                <select className="field" value={draft.day} onChange={(e) => setDraft({ ...draft, day: e.target.value })}>
+                  {Array.from({ length: 31 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>{i + 1}.</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {parseInt(draft.day) > 28 && (
+              <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+                I måneder med færre dage bogføres reglen på månedens sidste dag.
+              </p>
+            )}
+            <div>
+              <p className="label mb-1.5">Fra</p>
+              <select className="field" value={draft.sourceAccountId} onChange={(e) => setDraft({ ...draft, sourceAccountId: e.target.value })}>
+                <option value="">Udefra (fx løn eller lommepenge)</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>{account.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <p className="label mb-1.5">Til</p>
+              <select className="field" value={draft.destAccountId} onChange={(e) => setDraft({ ...draft, destAccountId: e.target.value })}>
+                <option value="">Ud af systemet (fx donation)</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>{account.name}</option>
+                ))}
+              </select>
+            </div>
+            {draftKind && (
+              <div>
+                <p className="label mb-1.5">Kategori</p>
+                <select className="field" value={draft.categoryId} onChange={(e) => setDraft({ ...draft, categoryId: e.target.value })}>
+                  <option value="">Ingen kategori</option>
+                  {categories
+                    .filter((category) => category.kind === draftKind)
+                    .map((category) => (
+                      <option key={category.id} value={category.id}>{category.name}</option>
+                    ))}
+                </select>
+              </div>
+            )}
+            {!draft.sourceAccountId && !draft.destAccountId && (
+              <p className="text-xs" style={{ color: 'var(--expense)' }}>Vælg mindst én konto.</p>
+            )}
+            <div className="flex gap-2 pt-1">
+              {draft.id && (
+                <button aria-label="Slet regel" className="btn btn-danger" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 size={18} />
+                </button>
+              )}
+              <button className="btn btn-accent flex-1" disabled={!ruleValid || saveRule.isPending} onClick={() => saveRule.mutate(draft)}>
+                Gem
+              </button>
+            </div>
+            <ConfirmSheet
+              open={confirmDelete}
+              onClose={() => setConfirmDelete(false)}
+              title="Slet regel?"
+              text="Reglen stopper. Tidligere bogførte posteringer bliver stående."
+              confirmLabel="Slet"
+              busy={deleteRule.isPending}
+              onConfirm={() => draft.id && deleteRule.mutate(draft.id)}
+            />
+          </div>
+        )}
+      </Sheet>
     </div>
   );
 }

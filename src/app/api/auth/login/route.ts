@@ -1,33 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyPassword, createToken } from '@/lib/auth';
+import { rateLimit } from '@/lib/rate-limit';
+import { ApiError, open, parseBody } from '@/lib/route';
+import { loginSchema } from '@/lib/validation';
 
-export async function POST(request: NextRequest) {
-  try {
-    const { username, password } = await request.json();
+export const POST = open('Login', async (request) => {
+  rateLimit(request, 'login', 20, 10 * 60 * 1000);
+  const { username, password } = await parseBody(request, loginSchema);
 
-    if (!username || !password) {
-      return NextResponse.json({ error: 'Brugernavn og password kræves' }, { status: 400 });
-    }
-
-    const user = await db.user.findUnique({ where: { username } });
-    if (!user) {
-      return NextResponse.json({ error: 'Forkert brugernavn eller password' }, { status: 401 });
-    }
-
-    const valid = await verifyPassword(password, user.passwordHash);
-    if (!valid) {
-      return NextResponse.json({ error: 'Forkert brugernavn eller password' }, { status: 401 });
-    }
-
-    const token = await createToken(user.id, user.username);
-
-    return NextResponse.json({
-      token,
-      user: { id: user.id, username: user.username, themeAccentColor: user.themeAccentColor, themeBgColor: user.themeBgColor },
-    });
-  } catch (error) {
-    console.error('Login error:', error);
-    return NextResponse.json({ error: 'Der opstod en fejl' }, { status: 500 });
+  const user = await db.user.findUnique({ where: { username } });
+  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    throw new ApiError(401, 'Forkert brugernavn eller password');
   }
-}
+
+  const token = await createToken(user.id, user.username);
+  return {
+    token,
+    user: { id: user.id, username: user.username, themeAccentColor: user.themeAccentColor, themeBgColor: user.themeBgColor },
+  };
+});

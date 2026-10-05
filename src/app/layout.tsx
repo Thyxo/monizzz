@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -31,6 +32,10 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="antialiased">
+        {/* Paint the saved background before the app loads, so a light theme does not flash dark. */}
+        <Script id="saved-theme" strategy="beforeInteractive">
+          {"try{var u=JSON.parse(localStorage.getItem('monizzz_user'));if(u&&u.themeBgColor)document.documentElement.style.setProperty('--bg',u.themeBgColor)}catch(e){}"}
+        </Script>
         {children}
       </body>
     </html>

@@ -18,6 +18,7 @@ model User {
 
   accounts          Account[]
   autoTransferRules AutoTransferRule[]
+  categories        Category[]
 }
 
 model Account {
@@ -54,7 +55,30 @@ model Transaction {
   transferId  String?  // Links source and dest of a transfer
   createdAt   DateTime @default(now())
 
-  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId  String?
+
+  account  Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([accountId, createdAt])
+  @@index([transferId])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  kind      String   @default("expense") // expense, income
+  color     String   @default("#94a3b8")
+  icon      String   @default("tag")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  autoRules    AutoTransferRule[]
+
+  @@index([userId])
 }
 
 model AutoTransferRule {
@@ -66,10 +90,15 @@ model AutoTransferRule {
   sourceAccountId   String?
   destAccountId     String?
   lastRunAt         DateTime?
+  // Months due before this moment are never booked. Existing rules get the
+  // time the column was added, so nothing is back-booked on upgrade.
+  startFrom         DateTime @default(now())
+  categoryId        String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   source  Account? @relation("SourceAccount", fields: [sourceAccountId], references: [id], onDelete: SetNull)
   dest    Account? @relation("DestAccount", fields: [destAccountId], references: [id], onDelete: SetNull)
 }

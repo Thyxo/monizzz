@@ -1,163 +1,287 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
-import { useAppStore } from '@/store';
-import { api } from '@/lib/api';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Toaster, toast } from 'sonner';
+import {
+  CalendarDays,
+  Calculator,
+  Ellipsis,
+  House,
+  LayoutGrid,
+  List,
+  Plus,
+  Settings,
+  Tags,
+  Target,
+  Wallet,
+  WifiOff,
+  type LucideIcon,
+} from 'lucide-react';
+import { useAppStore, type Tab } from '@/store';
+import { HttpError, api, setUnauthorizedHandler } from '@/lib/api';
+import { PERSIST_KEY, PERSIST_MAX_AGE, clearCache, queryClient, useOnline } from '@/lib/queries';
+import { applyTheme, isDark } from '@/lib/theme';
 import LoginPage from '@/components/auth/LoginPage';
+import HomeView from '@/components/app/HomeView';
+import TransactionsView from '@/components/app/TransactionsView';
 import OverviewView from '@/components/app/OverviewView';
+import CalendarView from '@/components/app/CalendarView';
 import AccountsView from '@/components/app/AccountsView';
 import GoalsView from '@/components/app/GoalsView';
 import CalculatorView from '@/components/app/CalculatorView';
+import CategoriesView from '@/components/app/CategoriesView';
 import SettingsView from '@/components/app/SettingsView';
+import TransactionSheet from '@/components/app/TransactionSheet';
 
-type Tab = 'overview' | 'accounts' | 'goals' | 'calculator' | 'settings';
+const persister = createSyncStoragePersister({
+  storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  key: PERSIST_KEY,
+});
 
-const tabs: { key: Tab; label: string; icon: string }[] = [
-  { key: 'overview', label: 'Oversigt', icon: '\u2302' },
-  { key: 'accounts', label: 'Konti', icon: '\u2630' },
-  { key: 'goals', label: 'Mål', icon: '\u2605' },
-  { key: 'calculator', label: 'Regner', icon: '\u2795' },
-  { key: 'settings', label: 'Indstill.', icon: '\u2699' },
+const mainTabs: { key: Tab; label: string; icon: LucideIcon }[] = [
+  { key: 'home', label: 'Hjem', icon: House },
+  { key: 'transactions', label: 'Transaktioner', icon: List },
+  { key: 'overview', label: 'Oversigt', icon: LayoutGrid },
+  { key: 'calendar', label: 'Kalender', icon: CalendarDays },
 ];
 
+const moreTabs: { key: Tab; label: string; icon: LucideIcon }[] = [
+  { key: 'accounts', label: 'Konti', icon: Wallet },
+  { key: 'goals', label: 'Mål', icon: Target },
+  { key: 'calculator', label: 'Lommeregner', icon: Calculator },
+  { key: 'categories', label: 'Kategorier', icon: Tags },
+  { key: 'settings', label: 'Indstillinger', icon: Settings },
+];
+
+const views: Record<Tab, () => React.JSX.Element> = {
+  home: HomeView,
+  transactions: TransactionsView,
+  overview: OverviewView,
+  calendar: CalendarView,
+  accounts: AccountsView,
+  goals: GoalsView,
+  calculator: CalculatorView,
+  categories: CategoriesView,
+  settings: SettingsView,
+};
+
+const fabTabs: Tab[] = ['home', 'transactions', 'overview', 'calendar'];
+
 export default function Home() {
-  const { token, user, activeTab, setActiveTab, setToken, setUser, accounts, setAccounts } = useAppStore();
+  return (
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: PERSIST_MAX_AGE }}>
+      <App />
+    </PersistQueryClientProvider>
+  );
+}
+
+const noopSubscribe = () => () => {};
+
+function App() {
+  const { token, user, setUser, logout } = useAppStore();
   const [authChecked, setAuthChecked] = useState(false);
-  // Compute theme CSS variables
-  const themeVars = useMemo(() => {
-    const accent = user?.themeAccentColor || '#10b981';
-    const bg = user?.themeBgColor || '#0a0a0a';
-    const bgRGB = hexToRgb(bg);
-    const accentRGB = hexToRgb(accent);
-    const dark = isBgDark(bg);
-    return {
-      '--accent': accent,
-      '--accent-fg': dark ? '#ffffff' : '#000000',
-      '--accent-rgb': `${accentRGB.r}, ${accentRGB.g}, ${accentRGB.b}`,
-      '--bg': bg,
-      '--bg-rgb': `${bgRGB.r}, ${bgRGB.g}, ${bgRGB.b}`,
-      '--fg': dark ? '#f1f5f9' : '#0f172a',
-      '--fg-muted': dark ? '#94a3b8' : '#64748b',
-      '--card': dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-      '--border': dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-    } as React.CSSProperties;
+  const started = useRef(false);
+  // False on the server and during hydration, where the cached session is unknown.
+  const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
+
+  useEffect(() => {
+    applyTheme(user?.themeAccentColor, user?.themeBgColor);
   }, [user?.themeAccentColor, user?.themeBgColor]);
 
-  const isDark = useMemo(() => isBgDark(user?.themeBgColor || '#0a0a0a'), [user?.themeBgColor]);
-
-  // Check auth on mount
-  const swRegistered = useRef(false);
   useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+
+    setUnauthorizedHandler(() => {
+      logout();
+      clearCache();
+    });
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+
     const checkAuth = async () => {
       if (token) {
         try {
           const data = await api.auth.me();
           setUser(data.user);
-        } catch {
-          setToken(null);
+        } catch (error) {
+          // Offline or server trouble: keep the cached session. A 401 has already logged out.
+          if (!(error instanceof HttpError && error.status === 401)) console.error(error);
         }
       }
       setAuthChecked(true);
     };
     checkAuth();
-
-    // Register service worker for PWA
-    if (!swRegistered.current && 'serviceWorker' in navigator) {
-      swRegistered.current = true;
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
   }, []);
 
-  // Load accounts when user is set
+  const signedIn = Boolean(token && user);
+
+  // Book any automatic rules that have come due since the app was last open.
   useEffect(() => {
-    if (user && token) {
-      api.accounts.list().then((data) => setAccounts(data.accounts)).catch(console.error);
-    }
-  }, [user, token]);
+    if (!authChecked || !signedIn) return;
+    api.autoRules
+      .run()
+      .then(({ results }) => {
+        const booked = results.filter((result) => result.status !== 'error').length;
+        if (booked > 0) {
+          toast.success(booked === 1 ? '1 automatisk postering bogført' : `${booked} automatiske posteringer bogført`);
+          queryClient.invalidateQueries();
+        }
+      })
+      .catch(() => {});
+  }, [authChecked, signedIn]);
 
-  if (!authChecked) {
-    return (
-      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: '#0a0a0a' }}>
-        <div className="animate-pulse text-xl" style={{ color: '#94a3b8' }}>
-          monizzz
-        </div>
-      </div>
-    );
-  }
-
-  if (!token || !user) {
-    return <LoginPage />;
-  }
-
-  const renderView = () => {
-    switch (activeTab) {
-      case 'overview': return <OverviewView />;
-      case 'accounts': return <AccountsView />;
-      case 'goals': return <GoalsView />;
-      case 'calculator': return <CalculatorView />;
-      case 'settings': return <SettingsView />;
-    }
-  };
+  const dark = isDark(user?.themeBgColor || '#0a0a0a');
 
   return (
-    <div
-      className="flex flex-col h-dvh overflow-hidden select-none"
-      style={{
-        backgroundColor: 'var(--bg)',
-        color: 'var(--fg)',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, sans-serif',
-        ...themeVars,
-      }}
-    >
-      {/* Content area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {renderView()}
+    <>
+      <Toaster position="top-center" theme={dark ? 'dark' : 'light'} richColors closeButton={false} duration={2500} />
+      {!hydrated || (!authChecked && !user) ? (
+        <div className="flex h-dvh items-center justify-center">
+          <div className="animate-pulse text-xl" style={{ color: 'var(--fg-muted)' }}>monizzz</div>
+        </div>
+      ) : signedIn ? (
+        <Shell />
+      ) : (
+        <LoginPage />
+      )}
+    </>
+  );
+}
+
+function Shell() {
+  const { activeTab, setActiveTab, openSheet } = useAppStore();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const online = useOnline();
+  const View = views[activeTab];
+  const inMore = moreTabs.some((tab) => tab.key === activeTab);
+
+  return (
+    <div className="mx-auto flex h-dvh max-w-2xl select-none flex-col overflow-hidden">
+      {!online && (
+        <div
+          className="flex shrink-0 items-center justify-center gap-2 py-1.5 text-xs font-medium"
+          style={{ backgroundColor: 'var(--card)', color: 'var(--fg-muted)', paddingTop: 'calc(env(safe-area-inset-top) + 0.375rem)' }}
+        >
+          <WifiOff size={14} /> Offline – viser senest hentede data
+        </div>
+      )}
+
+      <div className="relative flex flex-1 flex-col overflow-hidden">
+        <motion.div
+          key={activeTab}
+          className="flex flex-1 flex-col overflow-hidden"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+        >
+          <View />
+        </motion.div>
+
+        {fabTabs.includes(activeTab) && (
+          <button
+            aria-label="Ny transaktion"
+            onClick={() => openSheet({ kind: 'expense' })}
+            disabled={!online}
+            className="pressable absolute bottom-4 right-4 flex h-14 w-14 items-center justify-center rounded-full shadow-lg"
+            style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
+          >
+            <Plus size={28} />
+          </button>
+        )}
       </div>
 
-      {/* Bottom tab bar */}
+      <AnimatePresence>
+        {moreOpen && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-40"
+              style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMoreOpen(false)}
+            />
+            <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 mx-auto max-w-2xl">
+              <motion.div
+                className="pointer-events-auto absolute right-3 w-56 overflow-hidden rounded-2xl p-1.5 shadow-2xl"
+                style={{
+                  bottom: 'calc(env(safe-area-inset-bottom) + 72px)',
+                  backgroundColor: 'var(--sheet)',
+                  border: '1px solid var(--border)',
+                  transformOrigin: 'bottom right',
+                }}
+                initial={{ opacity: 0, scale: 0.85, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.85, y: 12 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+              >
+                {moreTabs.map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setActiveTab(key);
+                      setMoreOpen(false);
+                    }}
+                    className="pressable flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium"
+                    style={{
+                      color: activeTab === key ? 'var(--accent)' : 'var(--fg)',
+                      backgroundColor: activeTab === key ? 'var(--card)' : 'transparent',
+                    }}
+                  >
+                    <Icon size={20} />
+                    {label}
+                  </button>
+                ))}
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
       <nav
-        className="shrink-0 flex items-stretch border-t"
+        className="relative z-50 flex shrink-0 items-stretch border-t"
         style={{
-          backgroundColor: 'var(--card)',
+          backgroundColor: 'var(--sheet)',
           borderColor: 'var(--border)',
           paddingBottom: 'env(safe-area-inset-bottom)',
           minHeight: '60px',
         }}
       >
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 active:scale-[0.95] transition-all duration-150"
-              style={{
-                color: isActive ? 'var(--accent)' : 'var(--fg-muted)',
-              }}
-            >
-              <span className="text-xl leading-none">{tab.icon}</span>
-              <span className="text-[10px] font-medium leading-none">{tab.label}</span>
-            </button>
-          );
-        })}
+        {mainTabs.map(({ key, label, icon: Icon }) => (
+          <NavButton
+            key={key}
+            label={label}
+            icon={Icon}
+            active={activeTab === key && !moreOpen}
+            onClick={() => {
+              setActiveTab(key);
+              setMoreOpen(false);
+            }}
+          />
+        ))}
+        <NavButton label="Mere" icon={Ellipsis} active={inMore || moreOpen} onClick={() => setMoreOpen(!moreOpen)} />
       </nav>
+
+      <TransactionSheet />
     </div>
   );
 }
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
-    ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
-      }
-    : { r: 0, g: 0, b: 0 };
-}
-
-function isBgDark(hex: string): boolean {
-  const { r, g, b } = hexToRgb(hex);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance < 0.5;
+function NavButton({ label, icon: Icon, active, onClick }: { label: string; icon: LucideIcon; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="pressable flex flex-1 flex-col items-center justify-center gap-1 py-2"
+      style={{ color: active ? 'var(--accent)' : 'var(--fg-muted)' }}
+    >
+      <Icon size={22} strokeWidth={active ? 2.4 : 2} />
+      <span className="text-[10px] font-medium leading-none">{label}</span>
+    </button>
+  );
 }

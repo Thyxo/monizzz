@@ -1,125 +1,91 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { ApiError, authed, parseBody, requireParam } from '@/lib/route';
+import { ruleCreateSchema, ruleUpdateSchema } from '@/lib/validation';
 
-export async function GET(request: NextRequest) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Ikke logget ind' }, { status: 401 });
-    }
+const include = { source: true, dest: true, category: true };
 
-    const rules = await db.autoTransferRule.findMany({
-      where: { userId: user.userId },
-      include: { source: true, dest: true },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    return NextResponse.json({ rules });
-  } catch (error) {
-    console.error('Get auto rules error:', error);
-    return NextResponse.json({ error: 'Der opstod en fejl' }, { status: 500 });
+async function assertOwned(
+  userId: string,
+  refs: { sourceAccountId?: string | null; destAccountId?: string | null; categoryId?: string | null },
+) {
+  const accountIds = [refs.sourceAccountId, refs.destAccountId].filter(Boolean) as string[];
+  if (accountIds.length) {
+    const owned = await db.account.count({ where: { id: { in: accountIds }, userId } });
+    if (owned !== new Set(accountIds).size) throw new ApiError(404, 'Konto ikke fundet');
+  }
+  if (refs.sourceAccountId && refs.sourceAccountId === refs.destAccountId) {
+    throw new ApiError(400, 'Kilde og modtager skal være forskellige');
+  }
+  if (refs.categoryId) {
+    const category = await db.category.findFirst({ where: { id: refs.categoryId, userId } });
+    if (!category) throw new ApiError(404, 'Kategori ikke fundet');
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Ikke logget ind' }, { status: 401 });
-    }
+export const GET = authed('Get auto rules', async (_request, user) => {
+  const rules = await db.autoTransferRule.findMany({
+    where: { userId: user.userId },
+    include,
+    orderBy: { createdAt: 'asc' },
+  });
+  return { rules };
+});
 
-    const { name, amount, dayOfMonth, sourceAccountId, destAccountId } = await request.json();
-
-    if (!name || !amount) {
-      return NextResponse.json({ error: 'Navn og beløb kræves' }, { status: 400 });
-    }
-
+export const POST = authed(
+  'Create auto rule',
+  async (request, user) => {
+    const data = await parseBody(request, ruleCreateSchema);
+    await assertOwned(user.userId, data);
     const rule = await db.autoTransferRule.create({
       data: {
         userId: user.userId,
-        name,
-        amount,
-        dayOfMonth: dayOfMonth || 1,
-        sourceAccountId: sourceAccountId || null,
-        destAccountId: destAccountId || null,
+        name: data.name,
+        amount: data.amount,
+        dayOfMonth: data.dayOfMonth,
+        sourceAccountId: data.sourceAccountId || null,
+        destAccountId: data.destAccountId || null,
+        categoryId: data.categoryId || null,
       },
-      include: { source: true, dest: true },
+      include,
     });
+    return { rule };
+  },
+  201,
+);
 
-    return NextResponse.json({ rule }, { status: 201 });
-  } catch (error) {
-    console.error('Create auto rule error:', error);
-    return NextResponse.json({ error: 'Der opstod en fejl' }, { status: 500 });
-  }
-}
+export const PUT = authed('Update auto rule', async (request, user) => {
+  const { id, name, amount, dayOfMonth, sourceAccountId, destAccountId, categoryId } = await parseBody(
+    request,
+    ruleUpdateSchema,
+  );
+  const existing = await db.autoTransferRule.findFirst({ where: { id, userId: user.userId } });
+  if (!existing) throw new ApiError(404, 'Regel ikke fundet');
 
-export async function PUT(request: NextRequest) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Ikke logget ind' }, { status: 401 });
-    }
+  await assertOwned(user.userId, {
+    sourceAccountId: sourceAccountId === undefined ? existing.sourceAccountId : sourceAccountId,
+    destAccountId: destAccountId === undefined ? existing.destAccountId : destAccountId,
+    categoryId,
+  });
 
-    const { id, name, amount, dayOfMonth, sourceAccountId, destAccountId } = await request.json();
+  const rule = await db.autoTransferRule.update({
+    where: { id },
+    data: {
+      ...(name !== undefined && { name }),
+      ...(amount !== undefined && { amount }),
+      ...(dayOfMonth !== undefined && { dayOfMonth }),
+      ...(sourceAccountId !== undefined && { sourceAccountId: sourceAccountId || null }),
+      ...(destAccountId !== undefined && { destAccountId: destAccountId || null }),
+      ...(categoryId !== undefined && { categoryId: categoryId || null }),
+    },
+    include,
+  });
+  return { rule };
+});
 
-    if (!id) {
-      return NextResponse.json({ error: 'Regel ID kræves' }, { status: 400 });
-    }
-
-    const existingRule = await db.autoTransferRule.findFirst({
-      where: { id, userId: user.userId },
-    });
-
-    if (!existingRule) {
-      return NextResponse.json({ error: 'Regel ikke fundet' }, { status: 404 });
-    }
-
-    const rule = await db.autoTransferRule.update({
-      where: { id },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(amount !== undefined && { amount }),
-        ...(dayOfMonth !== undefined && { dayOfMonth }),
-        ...(sourceAccountId !== undefined && { sourceAccountId: sourceAccountId || null }),
-        ...(destAccountId !== undefined && { destAccountId: destAccountId || null }),
-      },
-      include: { source: true, dest: true },
-    });
-
-    return NextResponse.json({ rule });
-  } catch (error) {
-    console.error('Update auto rule error:', error);
-    return NextResponse.json({ error: 'Der opstod en fejl' }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Ikke logget ind' }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) {
-      return NextResponse.json({ error: 'Regel ID kræves' }, { status: 400 });
-    }
-
-    const existingRule = await db.autoTransferRule.findFirst({
-      where: { id, userId: user.userId },
-    });
-
-    if (!existingRule) {
-      return NextResponse.json({ error: 'Regel ikke fundet' }, { status: 404 });
-    }
-
-    await db.autoTransferRule.delete({ where: { id } });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Delete auto rule error:', error);
-    return NextResponse.json({ error: 'Der opstod en fejl' }, { status: 500 });
-  }
-}
+export const DELETE = authed('Delete auto rule', async (request, user) => {
+  const id = requireParam(request, 'id', 'Regel ID kræves');
+  const existing = await db.autoTransferRule.findFirst({ where: { id, userId: user.userId } });
+  if (!existing) throw new ApiError(404, 'Regel ikke fundet');
+  await db.autoTransferRule.delete({ where: { id } });
+  return { success: true };
+});

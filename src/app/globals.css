@@ -1,41 +1,54 @@
 @import "tailwindcss";
 
-/* Reset defaults */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* Defaults until the user's theme is applied by applyTheme() in src/lib/theme.ts */
+:root {
+  --accent: #10b981;
+  --accent-fg: #ffffff;
+  --accent-rgb: 16, 185, 129;
+  --bg: #0a0a0a;
+  --bg-rgb: 10, 10, 10;
+  --fg: #f1f5f9;
+  --fg-muted: #94a3b8;
+  --card: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
+  --sheet: #1a1a1a;
+  --income: #10b981;
+  --expense: #ef4444;
 }
 
+@layer base {
 html, body {
   height: 100%;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   overscroll-behavior: none;
+  background-color: var(--bg);
+  color: var(--fg);
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, sans-serif;
 }
 
-/* Remove scroll bounce globally */
-html {
-  overflow: hidden;
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
-/* Custom scrollbar for internal scroll areas */
 ::-webkit-scrollbar {
   width: 0px;
+  height: 0px;
 }
 
-/* Select styling for dark/light themes */
 select option {
-  background-color: #1a1a2e;
-  color: #f1f5f9;
+  background-color: var(--sheet);
+  color: var(--fg);
 }
 
-/* Input number arrows removal */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button {
   -webkit-appearance: none;
@@ -43,4 +56,95 @@ input[type=number]::-webkit-outer-spin-button {
 }
 input[type=number] {
   -moz-appearance: textfield;
+}
+input[type=date] {
+  color-scheme: var(--color-scheme, dark);
+}
+}
+
+/* Shared building blocks for the app views. In the components layer so utilities can override them. */
+@layer components {
+.card {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+.field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  outline: none;
+  background-color: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  appearance: none;
+  transition: border-color 150ms;
+}
+.field:focus {
+  border-color: var(--accent);
+}
+.field::placeholder {
+  color: var(--fg-muted);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  transition: transform 120ms, opacity 120ms;
+  user-select: none;
+}
+.btn:active:not(:disabled), .pressable:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.pressable {
+  transition: transform 120ms, opacity 120ms;
+}
+.btn-accent {
+  background-color: var(--accent);
+  color: var(--accent-fg);
+}
+.btn-soft {
+  background-color: rgba(148, 163, 184, 0.15);
+  color: var(--fg);
+}
+.btn-danger {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: var(--expense);
+}
+.btn-ghost {
+  color: var(--fg-muted);
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+}
+
+.scroll-area {
+  flex: 1 1 0%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.skeleton {
+  border-radius: 0.75rem;
+  background-color: var(--card);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
 }

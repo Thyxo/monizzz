@@ -1,7 +1,17 @@
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'monizzz-secret-key-change-in-production');
+// Resolved lazily so a build without JWT_SECRET (the Vercel frontend) still works.
+let cachedSecret: Uint8Array | null = null;
+function getSecret(): Uint8Array {
+  if (cachedSecret) return cachedSecret;
+  const secret = process.env.JWT_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET mangler');
+  }
+  cachedSecret = new TextEncoder().encode(secret || 'monizzz-dev-secret');
+  return cachedSecret;
+}
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
@@ -16,24 +26,16 @@ export async function createToken(userId: string, username: string): Promise<str
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime('30d')
     .setIssuedAt()
-    .sign(JWT_SECRET);
+    .sign(getSecret());
 }
 
 export async function verifyToken(token: string): Promise<{ userId: string; username: string } | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getSecret());
     return payload as unknown as { userId: string; username: string };
   } catch {
     return null;
   }
-}
-
-export function getSessionFromRequest(request: Request): { userId: string; username: string } | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  // Synchronously we can't verify, so we return null here
-  // The actual verification happens in the route handlers
-  return null;
 }
 
 export async function getUserFromRequest(request: Request) {

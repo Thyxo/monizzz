@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  // The dev badge sits on top of the bottom tab bar.
+  devIndicators: false,
 };
 
 export default nextConfig;
