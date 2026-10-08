@@ -79,6 +79,7 @@ export const settingsSchema = z.object({
   greetingStyle: z.string().trim().min(1, 'Hilsenen må ikke være tom').max(60, 'Hilsenen er for lang').optional(),
   defaultAccountId: id.nullable().optional(),
   hiddenWidgets: z.string().max(100).regex(/^[a-z,]*$/, 'Ugyldigt valg').optional(),
+  navTabs: z.string().max(100).regex(/^[a-z,]*$/, 'Ugyldigt valg').optional(),
 });
 
 export const categoryCreateSchema = z.object({

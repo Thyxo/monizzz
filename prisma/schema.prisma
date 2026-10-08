@@ -18,6 +18,8 @@ model User {
   defaultAccountId String?
   // Comma-separated keys of the home-screen sections the user has turned off.
   hiddenWidgets    String   @default("")
+  // Comma-separated keys of the three views in the bottom bar, in order. Empty = the default set.
+  navTabs          String   @default("")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

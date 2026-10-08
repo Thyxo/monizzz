@@ -19,6 +19,7 @@ export const userSelect = {
   greetingStyle: true,
   defaultAccountId: true,
   hiddenWidgets: true,
+  navTabs: true,
 } as const
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db

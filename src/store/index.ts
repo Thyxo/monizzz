@@ -23,6 +23,7 @@ export type User = {
   // Optional: a backend that has not been updated yet does not send these.
   defaultAccountId?: string | null;
   hiddenWidgets?: string;
+  navTabs?: string;
 };
 
 export type EntryKind = 'expense' | 'income' | 'transfer';

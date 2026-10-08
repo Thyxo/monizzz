@@ -4,26 +4,12 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
-import {
-  CalendarDays,
-  Calculator,
-  Ellipsis,
-  House,
-  LayoutGrid,
-  List,
-  Plus,
-  Repeat,
-  Settings,
-  Tags,
-  Target,
-  Wallet,
-  WifiOff,
-  type LucideIcon,
-} from 'lucide-react';
+import { Ellipsis, Plus, WifiOff, type LucideIcon } from 'lucide-react';
 import { useAppStore, type Tab } from '@/store';
 import { HttpError, api, setUnauthorizedHandler } from '@/lib/api';
 import { clearCache, queryClient, useOnline } from '@/lib/queries';
 import { applyTheme, isDark } from '@/lib/theme';
+import { NAV_TABS, navTabs } from '@/lib/nav';
 import LoginPage from '@/components/auth/LoginPage';
 import HomeView from '@/components/app/HomeView';
 import TransactionsView from '@/components/app/TransactionsView';
@@ -36,22 +22,6 @@ import CalculatorView from '@/components/app/CalculatorView';
 import CategoriesView from '@/components/app/CategoriesView';
 import SettingsView from '@/components/app/SettingsView';
 import TransactionSheet from '@/components/app/TransactionSheet';
-
-const mainTabs: { key: Tab; label: string; icon: LucideIcon }[] = [
-  { key: 'home', label: 'Hjem', icon: House },
-  { key: 'accounts', label: 'Konti', icon: Wallet },
-  { key: 'goals', label: 'Mål', icon: Target },
-];
-
-const moreTabs: { key: Tab; label: string; icon: LucideIcon }[] = [
-  { key: 'transactions', label: 'Transaktioner', icon: List },
-  { key: 'overview', label: 'Oversigt', icon: LayoutGrid },
-  { key: 'calendar', label: 'Kalender', icon: CalendarDays },
-  { key: 'rules', label: 'Automatiske regler', icon: Repeat },
-  { key: 'calculator', label: 'Lommeregner', icon: Calculator },
-  { key: 'categories', label: 'Kategorier', icon: Tags },
-  { key: 'settings', label: 'Indstillinger', icon: Settings },
-];
 
 const views: Record<Tab, () => React.JSX.Element> = {
   home: HomeView,
@@ -153,10 +123,14 @@ function App() {
 }
 
 function Shell() {
-  const { activeTab, setActiveTab, openSheet } = useAppStore();
+  const { user, activeTab, setActiveTab, openSheet } = useAppStore();
   const [moreOpen, setMoreOpen] = useState(false);
   const online = useOnline();
   const View = views[activeTab];
+  // The user picks the views in the bar; every other view is under "Mere".
+  const barKeys = navTabs(user);
+  const mainTabs = barKeys.map((key) => NAV_TABS.find((tab) => tab.key === key)!);
+  const moreTabs = NAV_TABS.filter((tab) => !barKeys.includes(tab.key));
   const inMore = moreTabs.some((tab) => tab.key === activeTab);
 
   return (
@@ -253,10 +227,10 @@ function Shell() {
           boxShadow: '0 -8px 24px -12px rgba(0,0,0,0.35)',
         }}
       >
-        {mainTabs.map(({ key, label, icon: Icon }) => (
+        {mainTabs.map(({ key, label, short, icon: Icon }) => (
           <NavButton
             key={key}
-            label={label}
+            label={short || label}
             icon={Icon}
             active={activeTab === key && !moreOpen}
             onClick={() => {

@@ -116,6 +116,7 @@ export const api = {
       greetingStyle?: string;
       defaultAccountId?: string | null;
       hiddenWidgets?: string;
+      navTabs?: string;
     }) =>
       request<{ user: any }>('/api/settings', { method: 'PUT', body: data }),
   },

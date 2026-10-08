@@ -9,6 +9,8 @@ import { clearCache, useAccounts, useAction, useOnline } from '@/lib/queries';
 import { downloadCsv, transactionsToCsv } from '@/lib/csv';
 import { DEFAULT_GREETING, HOME_WIDGETS, hiddenWidgets, toDateInput } from '@/lib/format';
 import { Header } from '@/components/app/ui';
+import { NAV_TABS, navTabs } from '@/lib/nav';
+import type { Tab } from '@/store';
 
 const colorPresets = [
   { accent: '#10b981', bg: '#0a0a0a', label: 'Emerald Night' },
@@ -73,10 +75,19 @@ export default function SettingsView() {
 
   // The home-screen choices save as soon as they are tapped.
   const saveHome = useAction(
-    (data: { defaultAccountId?: string | null; hiddenWidgets?: string }) => api.settings.update(data),
+    (data: { defaultAccountId?: string | null; hiddenWidgets?: string; navTabs?: string }) => api.settings.update(data),
     { onDone: (data) => setUser(data.user) },
   );
   const hidden = hiddenWidgets(user);
+  const barTabs = navTabs(user);
+  // Picking a view that is already in another slot swaps the two, so the bar never repeats a view.
+  const setSlot = (slot: number, key: Tab) => {
+    const next = [...barTabs];
+    const other = next.indexOf(key);
+    if (other !== -1) next[other] = next[slot];
+    next[slot] = key;
+    saveHome.mutate({ navTabs: next.join(',') });
+  };
   const defaultAccountId = accounts.find((account) => account.id === user?.defaultAccountId)?.id || '';
 
   const exportAll = async () => {
@@ -143,6 +154,27 @@ export default function SettingsView() {
             );
           })}
         </div>
+
+        <p className="label mb-1.5">Bundbjælke</p>
+        <div className="mb-1.5 grid grid-cols-3 gap-2">
+          {barTabs.map((key, slot) => (
+            <select
+              key={slot}
+              aria-label={`Plads ${slot + 1}`}
+              className="field"
+              value={key}
+              disabled={!online || saveHome.isPending}
+              onChange={(e) => setSlot(slot, e.target.value as Tab)}
+            >
+              {NAV_TABS.map((tab) => (
+                <option key={tab.key} value={tab.key}>{tab.label}</option>
+              ))}
+            </select>
+          ))}
+        </div>
+        <p className="mb-6 text-xs" style={{ color: 'var(--fg-muted)' }}>
+          De tre visninger i bunden af skærmen. Resten ligger under Mere.
+        </p>
 
         <Collapsible title="Tema">
           <div className="mb-4 grid grid-cols-4 gap-2">
