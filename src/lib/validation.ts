@@ -43,6 +43,11 @@ export const accountUpdateSchema = z.object({
   name,
 });
 
+// Every one of the user's account ids, in the order they should be listed.
+export const accountOrderSchema = z.object({
+  ids: z.array(id).min(1).max(500),
+});
+
 export const entryCreateSchema = z.object({
   accountId: id,
   amount: signedAmount,

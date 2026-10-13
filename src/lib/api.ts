@@ -85,6 +85,7 @@ export const api = {
       request<{ account: any }>('/api/accounts', { method: 'POST', body: data }),
     rename: (id: string, name: string) => request<{ account: any }>('/api/accounts', { method: 'PUT', body: { id, name } }),
     delete: (id: string) => request(`/api/accounts?id=${id}`, { method: 'DELETE' }),
+    reorder: (ids: string[]) => request('/api/accounts/order', { method: 'PUT', body: { ids } }),
     transfer: (data: { sourceAccountId: string; destAccountId: string; amount: number; note?: string; date?: string }) =>
       request('/api/accounts/transfer', { method: 'POST', body: data }),
   },

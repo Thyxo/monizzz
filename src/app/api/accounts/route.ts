@@ -6,7 +6,7 @@ export const GET = authed('Get accounts', async (_request, user) => {
   const accounts = await db.account.findMany({
     where: { userId: user.userId },
     include: { goal: true },
-    orderBy: { createdAt: 'asc' },
+    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
   });
   return { accounts };
 });
@@ -15,12 +15,19 @@ export const POST = authed(
   'Create account',
   async (request, user) => {
     const { name, type, balance, targetAmount } = await parseBody(request, accountCreateSchema);
+    // New accounts go last.
+    const last = await db.account.findFirst({
+      where: { userId: user.userId },
+      orderBy: { sortOrder: 'desc' },
+      select: { sortOrder: true },
+    });
     const account = await db.account.create({
       data: {
         userId: user.userId,
         name,
         type,
         balance: balance || 0,
+        sortOrder: (last?.sortOrder ?? -1) + 1,
         ...(targetAmount && type === 'goal_savings' ? { goal: { create: { targetAmount } } } : {}),
       },
       include: { goal: true },

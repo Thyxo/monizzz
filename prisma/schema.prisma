@@ -34,6 +34,8 @@ model Account {
   name      String
   type      String   @default("standard") // standard, opsparing, monizz, donation, custom, goal_savings
   balance   Float    @default(0)
+  // Position in the user's account lists; ties (rows from before this column) fall back to createdAt.
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

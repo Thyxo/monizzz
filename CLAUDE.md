@@ -38,7 +38,7 @@ For local development put a Postgres `DATABASE_URL` and a `JWT_SECRET` in `.env.
 
 ### Single-page client app
 
-There is exactly one route, `src/app/page.tsx`, and it is a client component. It gates on auth (`LoginPage` vs. the app shell) and switches between views in `src/components/app/` via `activeTab` in the Zustand store (`src/store/index.ts`) — there is no URL routing. The bottom bar holds Hjem, Konti and Mål; the last item, "Mere", opens a popup with Transaktioner, Oversigt, Kalender, Automatiske regler, Lommeregner, Kategorier and Indstillinger. Account detail is store state too (`selectedAccountId`).
+There is exactly one route, `src/app/page.tsx`, and it is a client component. It gates on auth (`LoginPage` vs. the app shell) and switches between views in `src/components/app/` via `activeTab` in the Zustand store (`src/store/index.ts`) — there is no URL routing. The bottom bar holds three views the user picks under Indstillinger (default Hjem, Konti, Mål; stored comma-separated in `User.navTabs`, see `src/lib/nav.ts`); the last item, "Mere", is fixed and opens a popup with every other view. Account detail is store state too (`selectedAccountId`).
 
 - **Data:** views read through the react-query hooks in `src/lib/queries.ts` (`useAccounts`, `useCategories`, `useTransactions`, `useMonthTransactions`, …) and write through `useAction`, which invalidates every query afterwards and reports errors as a toast. All HTTP goes through the `api` object in `src/lib/api.ts`, which attaches the bearer token and calls the store's logout on a 401 (no page reload).
 - **Statistics are computed in the client** from transaction lists (Hjem trend and month totals, Oversigt per category, Kalender dots). There is no stats endpoint. A transaction with a `transferId` is a transfer and is excluded from income/expense figures (`txKind` in `src/lib/format.ts`).
@@ -68,6 +68,7 @@ Prisma models: `User` → `Account` → `Transaction`, optional one-to-one `Goal
 - A transfer is two `Transaction` rows (negative on source, positive on destination) sharing a `transferId`, with notes suffixed `(udgående)` / `(indgående)`. Editing or deleting either row applies to both.
 - The transaction's date is `createdAt`, which is user-editable. There is no separate date column.
 - `Account.type` is a free-form string (`standard`, `opsparing`, `monizz`, `donation`, `custom`, `goal_savings`). Only `goal_savings` accounts get a `Goal` row and appear under Mål.
+- Accounts are listed by `Account.sortOrder`, then `createdAt`. New accounts go last; the order is changed from Hjem ("Rækkefølge") via `PUT /api/accounts/order`.
 - `User.greetingStyle` is the home-screen greeting; `{navn}` in it is replaced by the username (`greeting()` in `src/lib/format.ts`).
 - `Category.kind` is `expense` or `income`; `Transaction.categoryId` is optional (null = "Ukategoriseret") and is set null when a category is deleted.
 

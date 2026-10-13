@@ -1,14 +1,15 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Area, AreaChart, ResponsiveContainer, YAxis } from 'recharts';
-import { ArrowDownLeft, ArrowUpRight, Plus } from 'lucide-react';
+import { ArrowDown, ArrowDownLeft, ArrowUp, ArrowUpRight, Plus } from 'lucide-react';
 import { startOfDay, startOfMonth, subDays } from 'date-fns';
 import { useAppStore } from '@/store';
-import { useAccounts, useOnline, useRecentTransactions } from '@/lib/queries';
+import { api } from '@/lib/api';
+import { queryClient, useAccounts, useAction, useOnline, useRecentTransactions } from '@/lib/queries';
 import { ACCOUNT_TYPE_LABELS, formatAmount, formatNumber, greeting, hiddenWidgets, txKind } from '@/lib/format';
 import { tint } from '@/lib/theme';
-import { AccountBadge, SkeletonList, TransactionRow } from '@/components/app/ui';
+import { AccountBadge, Sheet, SkeletonList, TransactionRow } from '@/components/app/ui';
 
 const TREND_DAYS = 30;
 // Covers both the 30-day trend and the whole current month.
@@ -19,6 +20,7 @@ export default function HomeView() {
   const { accounts, isPending: accountsPending } = useAccounts();
   const { transactions, isPending: txPending } = useRecentTransactions(FETCH_DAYS);
   const online = useOnline();
+  const [sorting, setSorting] = useState(false);
 
   const total = accounts.reduce((sum, account) => sum + account.balance, 0);
 
@@ -121,7 +123,18 @@ export default function HomeView() {
       </div>}
 
       {show('accounts') && <>
-      <SectionTitle title="Konti" action="Se alle" onAction={() => setActiveTab('accounts')} />
+      <SectionTitle
+        title="Konti"
+        action="Se alle"
+        onAction={() => setActiveTab('accounts')}
+        extra={
+          accounts.length > 1 && (
+            <button className="text-xs font-semibold" style={{ color: 'var(--accent)' }} disabled={!online} onClick={() => setSorting(true)}>
+              Rækkefølge
+            </button>
+          )
+        }
+      />
       {accountsPending ? (
         <SkeletonList rows={3} />
       ) : accounts.length === 0 ? (
@@ -167,6 +180,8 @@ export default function HomeView() {
       )}
       </>}
 
+      <OrderSheet open={sorting} accounts={accounts} onClose={() => setSorting(false)} />
+
       {hidden.length >= 4 && (
         <p className="py-10 text-center text-sm" style={{ color: 'var(--fg-muted)' }}>
           Alt på Hjem er slået fra. Slå det til igen under Mere → Indstillinger.
@@ -176,14 +191,86 @@ export default function HomeView() {
   );
 }
 
-function SectionTitle({ title, action, onAction }: { title: string; action: string; onAction: () => void }) {
+function SectionTitle({
+  title,
+  action,
+  onAction,
+  extra,
+}: {
+  title: string;
+  action: string;
+  onAction: () => void;
+  extra?: React.ReactNode;
+}) {
   return (
     <div className="mb-2 mt-6 flex items-center justify-between first:mt-0">
       <p className="label">{title}</p>
-      <button className="text-xs font-semibold" style={{ color: 'var(--accent)' }} onClick={onAction}>
-        {action}
-      </button>
+      <div className="flex items-center gap-4">
+        {extra}
+        <button className="text-xs font-semibold" style={{ color: 'var(--accent)' }} onClick={onAction}>
+          {action}
+        </button>
+      </div>
     </div>
+  );
+}
+
+// Moves accounts up and down in a draft list; nothing is saved until "Gem".
+function OrderSheet({ open, accounts, onClose }: { open: boolean; accounts: any[]; onClose: () => void }) {
+  const online = useOnline();
+  const [draft, setDraft] = useState<any[] | null>(null);
+  const list = draft ?? accounts;
+  const close = () => {
+    setDraft(null);
+    onClose();
+  };
+  const save = useAction(async () => {
+    await api.accounts.reorder(list.map((account) => account.id));
+    // Show the new order right away instead of waiting for the refetch.
+    queryClient.setQueryData(['accounts'], (data: any) => (data ? { ...data, accounts: list } : data));
+  }, {
+    success: 'Rækkefølge gemt',
+    onDone: close,
+  });
+  const move = (index: number, direction: -1 | 1) => {
+    const next = [...list];
+    const [item] = next.splice(index, 1);
+    next.splice(index + direction, 0, item);
+    setDraft(next);
+  };
+
+  return (
+    <Sheet open={open} onClose={close} title="Rækkefølge på konti">
+      <div className="space-y-2">
+        {list.map((account, index) => (
+          <div key={account.id} className="card flex items-center gap-3 p-3">
+            <AccountBadge type={account.type} size={32} />
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold">{account.name}</span>
+            <button
+              aria-label="Flyt op"
+              className="pressable p-1.5"
+              style={{ color: 'var(--fg-muted)' }}
+              disabled={index === 0}
+              onClick={() => move(index, -1)}
+            >
+              <ArrowUp size={18} />
+            </button>
+            <button
+              aria-label="Flyt ned"
+              className="pressable p-1.5"
+              style={{ color: 'var(--fg-muted)' }}
+              disabled={index === list.length - 1}
+              onClick={() => move(index, 1)}
+            >
+              <ArrowDown size={18} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button className="btn btn-accent mt-4 w-full" disabled={!draft || save.isPending || !online} onClick={() => save.mutate(undefined)}>
+        {save.isPending ? 'Gemmer...' : 'Gem rækkefølge'}
+      </button>
+    </Sheet>
   );
 }
 
