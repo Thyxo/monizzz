@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeftRight, ChevronLeft, Pencil, Plus, PlusCircle, Trash2, Wallet } from 'lucide-react';
+import { ArrowLeftRight, ChevronLeft, ImagePlus, Pencil, Plus, PlusCircle, Trash2, Wallet } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { api } from '@/lib/api';
 import { useAccounts, useAction, useOnline, useTransactions } from '@/lib/queries';
@@ -45,6 +45,7 @@ function GoalBar({ account }: { account: any }) {
 
 function AccountList({ accounts, loading, onOpen }: { accounts: any[]; loading: boolean; onOpen: (id: string) => void }) {
   const online = useOnline();
+  const openImport = useAppStore((state) => state.openImport);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState('custom');
@@ -78,7 +79,12 @@ function AccountList({ accounts, loading, onOpen }: { accounts: any[]; loading: 
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
         title="Konti"
-        right={<IconButton icon={Plus} label="Ny konto" accent disabled={!online} onClick={() => setCreating(true)} />}
+        right={
+          <>
+            <IconButton icon={ImagePlus} label="Importér fra screenshot" disabled={!online || accounts.length === 0} onClick={() => openImport({})} />
+            <IconButton icon={Plus} label="Ny konto" accent disabled={!online} onClick={() => setCreating(true)} />
+          </>
+        }
       />
       <div className="scroll-area px-4 pb-6">
         {loading ? (
@@ -153,6 +159,7 @@ function AccountList({ accounts, loading, onOpen }: { accounts: any[]; loading: 
 
 function AccountDetail({ account, accounts, onBack }: { account: any; accounts: any[]; onBack: () => void }) {
   const openSheet = useAppStore((state) => state.openSheet);
+  const openImport = useAppStore((state) => state.openImport);
   const online = useOnline();
   const [limit, setLimit] = useState(PAGE);
   const [renaming, setRenaming] = useState(false);
@@ -183,6 +190,7 @@ function AccountDetail({ account, accounts, onBack }: { account: any; accounts: 
         }
         right={
           <>
+            <IconButton icon={ImagePlus} label="Importér fra screenshot" disabled={!online} onClick={() => openImport({ accountId: account.id })} />
             <IconButton icon={Pencil} label="Omdøb" disabled={!online} onClick={() => { setName(account.name); setRenaming(true); }} />
             <IconButton icon={Trash2} label="Slet konto" disabled={!online} onClick={() => setConfirmDelete(true)} />
           </>

@@ -121,6 +121,16 @@ export const api = {
     }) =>
       request<{ user: any }>('/api/settings', { method: 'PUT', body: data }),
   },
+  import: {
+    scan: (images: { mediaType: string; data: string }[]) =>
+      request<{
+        accountName: string | null;
+        balance: number | null;
+        rows: { date: string | null; text: string; amount: number; pending: boolean; categoryId: string | null }[];
+      }>('/api/import/screenshot', { method: 'POST', body: { images } }),
+    commit: (data: { accountId: string; rows: { amount: number; note: string; categoryId: string | null; date: string }[] }) =>
+      request<{ created: number }>('/api/import/commit', { method: 'POST', body: data }),
+  },
   autoRules: {
     list: () => request<{ rules: any[] }>('/api/auto-rules'),
     create: (data: RuleInput) => request<{ rule: any }>('/api/auto-rules', { method: 'POST', body: data }),

@@ -138,3 +138,32 @@ export const ruleUpdateSchema = z.object({
   destAccountId: optionalId,
   categoryId: optionalId,
 });
+
+// Screenshots for the import: base64 without the data: prefix, already downscaled by the app.
+export const screenshotScanSchema = z.object({
+  images: z
+    .array(
+      z.object({
+        mediaType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+        data: z.string().min(100).max(3_000_000, 'Billedet er for stort').regex(/^[A-Za-z0-9+/=]+$/, 'Ugyldigt billede'),
+      }),
+    )
+    .min(1, 'Vælg et billede')
+    .max(4, 'Højst 4 billeder ad gangen'),
+});
+
+// The rows the user approved on the review screen, booked in one go.
+export const importCommitSchema = z.object({
+  accountId: id,
+  rows: z
+    .array(
+      z.object({
+        amount: signedAmount,
+        note,
+        categoryId: optionalId,
+        date: z.coerce.date({ error: 'Ugyldig dato' }),
+      }),
+    )
+    .min(1, 'Vælg mindst én postering')
+    .max(300, 'For mange posteringer på én gang'),
+});

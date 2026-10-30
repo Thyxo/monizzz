@@ -58,6 +58,8 @@ interface AppState {
   selectedAccountId: string | null;
   sheet: SheetState;
   txPreset: TxPreset;
+  // The screenshot import sheet; `accountId` preselects the account.
+  importing: { accountId?: string } | null;
   setToken: (token: string | null) => void;
   setUser: (user: User | null) => void;
   setActiveTab: (tab: Tab) => void;
@@ -67,6 +69,8 @@ interface AppState {
   closeSheet: () => void;
   showTransactions: (preset: NonNullable<TxPreset>) => void;
   clearTxPreset: () => void;
+  openImport: (importing: { accountId?: string }) => void;
+  closeImport: () => void;
   logout: () => void;
 }
 
@@ -78,6 +82,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedAccountId: null,
   sheet: null,
   txPreset: null,
+  importing: null,
   setToken: (token) => {
     if (token) {
       localStorage.setItem(TOKEN_KEY, token);
@@ -101,10 +106,12 @@ export const useAppStore = create<AppState>((set) => ({
   closeSheet: () => set({ sheet: null }),
   showTransactions: (txPreset) => set({ activeTab: 'transactions', selectedAccountId: null, txPreset }),
   clearTxPreset: () => set({ txPreset: null }),
+  openImport: (importing) => set({ importing }),
+  closeImport: () => set({ importing: null }),
   logout: () => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    set({ token: null, user: null, activeTab: 'home', selectedAccountId: null, sheet: null, txPreset: null });
+    set({ token: null, user: null, activeTab: 'home', selectedAccountId: null, sheet: null, txPreset: null, importing: null });
   },
 }));
 

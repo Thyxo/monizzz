@@ -22,6 +22,7 @@ import CalculatorView from '@/components/app/CalculatorView';
 import CategoriesView from '@/components/app/CategoriesView';
 import SettingsView from '@/components/app/SettingsView';
 import TransactionSheet from '@/components/app/TransactionSheet';
+import ImportSheet from '@/components/app/ImportSheet';
 
 const views: Record<Tab, () => React.JSX.Element> = {
   home: HomeView,
@@ -243,6 +244,7 @@ function Shell() {
       </nav>
 
       <TransactionSheet />
+      <ImportSheet />
     </div>
   );
 }
