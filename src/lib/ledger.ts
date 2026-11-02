@@ -129,73 +129,103 @@ function stripLegSuffix(note: string | null) {
   return note;
 }
 
-export function updateEntry(
-  userId: string,
-  input: { id: string; amount?: number; note?: string | null; categoryId?: string | null; date?: Date | null },
-) {
-  return db.$transaction(async (tx) => {
-    const entry = await tx.transaction.findFirst({ where: { id: input.id, account: { userId } } });
-    if (!entry) throw new ApiError(404, 'Transaktion ikke fundet');
+type EntryUpdate = {
+  id: string;
+  accountId?: string;
+  amount?: number;
+  note?: string | null;
+  categoryId?: string | null;
+  date?: Date | null;
+};
 
-    // A transfer is edited as a whole: both legs keep the same size, note and date.
-    const legs = entry.transferId
-      ? await tx.transaction.findMany({ where: { transferId: entry.transferId, account: { userId } } })
-      : [entry];
-    const isTransfer = Boolean(entry.transferId);
-    const categoryId =
-      input.categoryId === undefined || isTransfer
-        ? undefined
-        : await resolveCategoryId(tx, userId, input.categoryId);
+export function updateEntry(userId: string, input: EntryUpdate) {
+  return db.$transaction((tx) => updateEntryIn(tx, userId, input));
+}
 
-    for (const leg of legs) {
-      let amount = leg.amount;
-      if (input.amount !== undefined) {
-        amount = isTransfer ? Math.sign(leg.amount || 1) * Math.abs(input.amount) : input.amount;
-      }
+/**
+ * Edits an entry inside an open transaction. `accountId` moves it (for a transfer: the edited
+ * leg) to another account: the old account gets the old amount back and the new one is charged.
+ */
+export async function updateEntryIn(tx: Tx, userId: string, input: EntryUpdate) {
+  const entry = await tx.transaction.findFirst({ where: { id: input.id, account: { userId } } });
+  if (!entry) throw new ApiError(404, 'Transaktion ikke fundet');
+
+  // A transfer is edited as a whole: both legs keep the same size, note and date.
+  const legs = entry.transferId
+    ? await tx.transaction.findMany({ where: { transferId: entry.transferId, account: { userId } } })
+    : [entry];
+  const isTransfer = Boolean(entry.transferId);
+  const categoryId =
+    input.categoryId === undefined || isTransfer
+      ? undefined
+      : await resolveCategoryId(tx, userId, input.categoryId);
+
+  const moveTo = input.accountId && input.accountId !== entry.accountId ? input.accountId : null;
+  if (moveTo) {
+    await requireAccount(tx, userId, moveTo);
+    if (legs.some((leg) => leg.id !== entry.id && leg.accountId === moveTo)) {
+      throw new ApiError(400, 'En overførsel kan ikke gå til og fra den samme konto');
+    }
+  }
+
+  for (const leg of legs) {
+    let amount = leg.amount;
+    if (input.amount !== undefined) {
+      amount = isTransfer ? Math.sign(leg.amount || 1) * Math.abs(input.amount) : input.amount;
+    }
+    const target = leg.id === entry.id && moveTo ? moveTo : leg.accountId;
+    if (target !== leg.accountId) {
+      await tx.account.update({ where: { id: leg.accountId }, data: { balance: { decrement: leg.amount } } });
+      await tx.account.update({ where: { id: target }, data: { balance: { increment: amount } } });
+    } else {
       const delta = round2(amount - leg.amount);
       if (delta !== 0) {
         await tx.account.update({ where: { id: leg.accountId }, data: { balance: { increment: delta } } });
       }
-
-      let note: string | null | undefined;
-      if (input.note !== undefined) {
-        if (isTransfer) {
-          const base = input.note || stripLegSuffix(leg.note) || 'Overførsel';
-          note = base + (leg.amount < 0 ? OUT_SUFFIX : IN_SUFFIX);
-        } else {
-          note = input.note || null;
-        }
-      }
-
-      await tx.transaction.update({
-        where: { id: leg.id },
-        data: {
-          amount,
-          ...(note !== undefined ? { note } : {}),
-          ...(categoryId !== undefined ? { categoryId } : {}),
-          ...(input.date ? { createdAt: input.date } : {}),
-        },
-      });
     }
 
-    const transaction = await tx.transaction.findUnique({ where: { id: entry.id }, include: entryInclude });
-    return { transaction };
-  });
+    let note: string | null | undefined;
+    if (input.note !== undefined) {
+      if (isTransfer) {
+        const base = input.note || stripLegSuffix(leg.note) || 'Overførsel';
+        note = base + (leg.amount < 0 ? OUT_SUFFIX : IN_SUFFIX);
+      } else {
+        note = input.note || null;
+      }
+    }
+
+    await tx.transaction.update({
+      where: { id: leg.id },
+      data: {
+        amount,
+        accountId: target,
+        ...(note !== undefined ? { note } : {}),
+        ...(categoryId !== undefined ? { categoryId } : {}),
+        ...(input.date ? { createdAt: input.date } : {}),
+      },
+    });
+  }
+
+  const transaction = await tx.transaction.findUnique({ where: { id: entry.id }, include: entryInclude });
+  return { transaction };
 }
 
 export function deleteEntry(userId: string, id: string) {
-  return db.$transaction(async (tx) => {
-    const entry = await tx.transaction.findFirst({ where: { id, account: { userId } } });
-    if (!entry) throw new ApiError(404, 'Transaktion ikke fundet');
+  return db.$transaction((tx) => deleteEntryIn(tx, userId, id));
+}
 
-    const legs = entry.transferId
-      ? await tx.transaction.findMany({ where: { transferId: entry.transferId, account: { userId } } })
-      : [entry];
+/** Deletes an entry (both legs of a transfer) inside an open transaction and reverses its balance. */
+export async function deleteEntryIn(tx: Tx, userId: string, id: string) {
+  const entry = await tx.transaction.findFirst({ where: { id, account: { userId } } });
+  if (!entry) throw new ApiError(404, 'Transaktion ikke fundet');
 
-    for (const leg of legs) {
-      await tx.account.update({ where: { id: leg.accountId }, data: { balance: { decrement: leg.amount } } });
-      await tx.transaction.delete({ where: { id: leg.id } });
-    }
-    return { success: true, deleted: legs.length };
-  });
+  const legs = entry.transferId
+    ? await tx.transaction.findMany({ where: { transferId: entry.transferId, account: { userId } } })
+    : [entry];
+
+  for (const leg of legs) {
+    await tx.account.update({ where: { id: leg.accountId }, data: { balance: { decrement: leg.amount } } });
+    await tx.transaction.delete({ where: { id: leg.id } });
+  }
+  return { success: true, deleted: legs.length, ids: legs.map((leg) => leg.id) };
 }

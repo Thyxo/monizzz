@@ -66,7 +66,7 @@ Resource endpoints multiplex verbs on one route with the id in the body (PUT) or
 
 Prisma models: `User` → `Account` → `Transaction`, optional one-to-one `Goal` per account, `Category`, and `AutoTransferRule`. Things that are not obvious from the schema alone:
 
-- `Account.balance` is a denormalized `Float`. All balance changes go through `src/lib/ledger.ts` (`postEntry`, `postTransfer`, `createEntry`, `updateEntry`, `deleteEntry`), which writes the balance and the `Transaction` row in one `db.$transaction`. Editing adjusts the balance by the difference; deleting reverses it.
+- `Account.balance` is a denormalized `Float`. All balance changes go through `src/lib/ledger.ts` (`postEntry`, `postTransfer`, `createEntry`, `updateEntry`, `deleteEntry`), which writes the balance and the `Transaction` row in one `db.$transaction`. Editing adjusts the balance by the difference; deleting reverses it; changing `accountId` moves the entry (for a transfer, only the edited leg) and fixes both balances. `updateEntryIn` / `deleteEntryIn` do the same inside an open transaction, which `POST /api/transactions/bulk` (delete or move many, all or nothing; used by "Vælg" on an account) relies on.
 - A transfer is two `Transaction` rows (negative on source, positive on destination) sharing a `transferId`, with notes suffixed `(udgående)` / `(indgående)`. Editing or deleting either row applies to both.
 - The transaction's date is `createdAt`, which is user-editable. There is no separate date column.
 - `Account.type` is a free-form string (`standard`, `opsparing`, `monizz`, `donation`, `custom`, `goal_savings`). Only `goal_savings` accounts get a `Goal` row and appear under Mål.

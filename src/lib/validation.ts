@@ -58,11 +58,19 @@ export const entryCreateSchema = z.object({
 
 export const entryUpdateSchema = z.object({
   id,
+  // Moves the entry to another account.
+  accountId: id.optional(),
   amount: signedAmount.optional(),
   note: note.optional(),
   categoryId: optionalId,
   date: date.optional(),
 });
+
+// Several transactions at once: delete them, or move them to another account.
+export const entryBulkSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('delete'), ids: z.array(id).min(1).max(500) }),
+  z.object({ action: z.literal('move'), ids: z.array(id).min(1).max(500), accountId: id }),
+]);
 
 export const transferSchema = z.object({
   sourceAccountId: id,

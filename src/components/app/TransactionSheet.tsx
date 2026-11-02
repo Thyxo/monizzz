@@ -98,6 +98,7 @@ function TransactionForm({ initial, onDone }: { initial: NonNullable<SheetState>
       if (editing) {
         return api.transactions.update({
           id: editing.id,
+          ...(selectedAccountId !== editing.accountId ? { accountId: selectedAccountId } : {}),
           amount: isTransfer ? value : kind === 'income' ? value : -value,
           note: note.trim() || null,
           ...(isTransfer ? {} : { categoryId }),
@@ -151,13 +152,10 @@ function TransactionForm({ initial, onDone }: { initial: NonNullable<SheetState>
       </p>
 
       <div>
-        <p className="label mb-1.5">{isTransfer ? 'Fra konto' : 'Konto'}</p>
-        <select
-          className="field"
-          value={selectedAccountId}
-          onChange={(e) => setAccountId(e.target.value)}
-          disabled={Boolean(editing)}
-        >
+        <p className="label mb-1.5">
+          {isTransfer && editing ? (editing.amount < 0 ? 'Fra konto' : 'Til konto') : isTransfer ? 'Fra konto' : 'Konto'}
+        </p>
+        <select className="field" value={selectedAccountId} onChange={(e) => setAccountId(e.target.value)}>
           {accounts.map((account) => (
             <option key={account.id} value={account.id}>
               {account.name} ({formatAmount(account.balance)})

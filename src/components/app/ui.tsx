@@ -2,7 +2,7 @@
 
 import { createElement, useEffect, useState, type ReactNode } from 'react';
 import { Drawer } from 'vaul';
-import { ArrowLeftRight, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, Check, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
 import { addMonths } from 'date-fns';
 import { UNCATEGORISED, categoryIcon } from '@/lib/icons';
 import { accountColor, formatAmountShort, formatMonth, txKind, txTitle } from '@/lib/format';
@@ -234,17 +234,36 @@ export function TransactionRow({
   tx,
   onClick,
   showAccount = true,
+  selected,
 }: {
   tx: any;
   onClick?: () => void;
   showAccount?: boolean;
+  // Set in selection mode: the icon becomes a checkbox.
+  selected?: boolean;
 }) {
   const kind = txKind(tx);
   const time = new Date(tx.createdAt).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
   const details = [time, showAccount && tx.account?.name, tx.note && tx.category?.name].filter(Boolean).join(' · ');
   return (
-    <button onClick={onClick} className="card pressable flex w-full items-center gap-3 p-3 text-left">
-      {kind === 'transfer' ? (
+    <button
+      onClick={onClick}
+      aria-pressed={selected}
+      className="card pressable flex w-full items-center gap-3 p-3 text-left"
+      style={selected ? { outline: '2px solid var(--accent)', outlineOffset: '-2px' } : undefined}
+    >
+      {selected !== undefined ? (
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+          style={{
+            backgroundColor: selected ? 'var(--accent)' : 'transparent',
+            border: selected ? 'none' : '2px solid var(--border)',
+            color: 'var(--accent-fg)',
+          }}
+        >
+          {selected && <Check size={20} />}
+        </div>
+      ) : kind === 'transfer' ? (
         <div
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
           style={{ backgroundColor: tint('#94a3b8', 0.2), color: 'var(--fg-muted)' }}

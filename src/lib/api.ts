@@ -94,9 +94,11 @@ export const api = {
       request<{ transactions: any[]; total: number }>(`/api/transactions${query(filter)}`),
     create: (data: { accountId: string; amount: number; note?: string; categoryId?: string | null; date?: string }) =>
       request<{ account: any; transaction: any }>('/api/transactions', { method: 'POST', body: data }),
-    update: (data: { id: string; amount?: number; note?: string | null; categoryId?: string | null; date?: string }) =>
+    update: (data: { id: string; accountId?: string; amount?: number; note?: string | null; categoryId?: string | null; date?: string }) =>
       request<{ transaction: any }>('/api/transactions', { method: 'PUT', body: data }),
     delete: (id: string) => request(`/api/transactions?id=${id}`, { method: 'DELETE' }),
+    bulk: (data: { action: 'delete'; ids: string[] } | { action: 'move'; ids: string[]; accountId: string }) =>
+      request<{ changed: number }>('/api/transactions/bulk', { method: 'POST', body: data }),
   },
   categories: {
     list: () => request<{ categories: any[] }>('/api/categories'),

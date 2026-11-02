@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { ArrowLeftRight, ChevronLeft, ImagePlus, Pencil, Plus, PlusCircle, Trash2, Wallet } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { api } from '@/lib/api';
@@ -24,7 +25,7 @@ export default function AccountsView() {
   const { accounts, isPending } = useAccounts();
   const account = accounts.find((a) => a.id === selectedAccountId);
 
-  if (account) return <AccountDetail account={account} accounts={accounts} onBack={() => setSelectedAccountId(null)} />;
+  if (account) return <AccountDetail key={account.id} account={account} accounts={accounts} onBack={() => setSelectedAccountId(null)} />;
   return <AccountList accounts={accounts} loading={isPending} onOpen={setSelectedAccountId} />;
 }
 
@@ -168,6 +169,39 @@ function AccountDetail({ account, accounts, onBack }: { account: any; accounts: 
   const [goal, setGoal] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { transactions, total, isPending } = useTransactions({ accountId: account.id, limit });
+  // Selection mode: tapping rows ticks them, and the bar at the bottom deletes or moves them.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [moving, setMoving] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const stopSelecting = () => {
+    setSelecting(false);
+    setSelected(new Set());
+    setMoving(false);
+    setConfirmBulkDelete(false);
+  };
+  const toggle = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelected(next);
+  };
+  const allSelected = transactions.length > 0 && transactions.every((tx) => selected.has(tx.id));
+  const bulkDelete = useAction(() => api.transactions.bulk({ action: 'delete', ids: [...selected] }), {
+    onDone: (result) => {
+      toast.success(result.changed === 1 ? '1 transaktion slettet' : `${result.changed} transaktioner slettet`);
+      stopSelecting();
+    },
+  });
+  const bulkMove = useAction(
+    (accountId: string) => api.transactions.bulk({ action: 'move', ids: [...selected], accountId }),
+    {
+      onDone: (result) => {
+        toast.success(result.changed === 1 ? '1 transaktion flyttet' : `${result.changed} transaktioner flyttet`);
+        stopSelecting();
+      },
+    },
+  );
 
   const rename = useAction(() => api.accounts.rename(account.id, name.trim()), {
     success: 'Navn ændret',
@@ -231,7 +265,30 @@ function AccountDetail({ account, accounts, onBack }: { account: any; accounts: 
       </div>
 
       <div className="scroll-area px-4 pb-6">
-        <p className="label mb-2">Transaktioner</p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="label">{selecting ? `${selected.size} valgt` : 'Transaktioner'}</p>
+          {transactions.length > 0 && (
+            <div className="flex items-center gap-4">
+              {selecting && (
+                <button
+                  className="text-xs font-semibold"
+                  style={{ color: 'var(--accent)' }}
+                  onClick={() => setSelected(allSelected ? new Set() : new Set(transactions.map((tx) => tx.id)))}
+                >
+                  {allSelected ? 'Fravælg alle' : 'Vælg alle'}
+                </button>
+              )}
+              <button
+                className="text-xs font-semibold"
+                style={{ color: 'var(--accent)' }}
+                disabled={!online}
+                onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+              >
+                {selecting ? 'Annullér' : 'Vælg'}
+              </button>
+            </div>
+          )}
+        </div>
         {isPending ? (
           <SkeletonList rows={4} />
         ) : transactions.length === 0 ? (
@@ -239,7 +296,13 @@ function AccountDetail({ account, accounts, onBack }: { account: any; accounts: 
         ) : (
           <div className="space-y-2">
             {transactions.map((tx) => (
-              <TransactionRow key={tx.id} tx={tx} showAccount={false} onClick={() => openSheet({ transaction: tx })} />
+              <TransactionRow
+                key={tx.id}
+                tx={tx}
+                showAccount={false}
+                selected={selecting ? selected.has(tx.id) : undefined}
+                onClick={() => (selecting ? toggle(tx.id) : openSheet({ transaction: tx }))}
+              />
             ))}
             {transactions.length < total && (
               <button className="btn btn-soft w-full" onClick={() => setLimit(limit + PAGE)}>
@@ -249,6 +312,56 @@ function AccountDetail({ account, accounts, onBack }: { account: any; accounts: 
           </div>
         )}
       </div>
+
+      {selecting && (
+        <div
+          className="flex shrink-0 gap-2 border-t px-4 pt-3"
+          style={{ borderColor: 'var(--border)', paddingBottom: '0.75rem' }}
+        >
+          <button
+            className="btn btn-soft flex-1"
+            disabled={selected.size === 0 || !online || accounts.length < 2}
+            onClick={() => setMoving(true)}
+          >
+            <ArrowLeftRight size={16} /> Flyt
+          </button>
+          <button className="btn btn-danger flex-1" disabled={selected.size === 0 || !online} onClick={() => setConfirmBulkDelete(true)}>
+            <Trash2 size={16} /> Slet
+          </button>
+        </div>
+      )}
+
+      <Sheet open={moving} onClose={() => setMoving(false)} title={`Flyt ${selected.size} til`}>
+        <div className="space-y-2">
+          {accounts
+            .filter((a) => a.id !== account.id)
+            .map((a) => (
+              <button
+                key={a.id}
+                className="card pressable flex w-full items-center gap-3 p-3 text-left"
+                disabled={bulkMove.isPending}
+                onClick={() => bulkMove.mutate(a.id)}
+              >
+                <AccountBadge type={a.type} size={36} />
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold">{a.name}</span>
+                <span className="text-sm" style={{ color: 'var(--fg-muted)' }}>{formatAmount(a.balance)}</span>
+              </button>
+            ))}
+          <p className="pt-1 text-xs" style={{ color: 'var(--fg-muted)' }}>
+            Saldoen rettes på begge konti. Ved en overførsel flyttes kun denne kontos side.
+          </p>
+        </div>
+      </Sheet>
+
+      <ConfirmSheet
+        open={confirmBulkDelete}
+        onClose={() => setConfirmBulkDelete(false)}
+        title={selected.size === 1 ? 'Slet 1 transaktion?' : `Slet ${selected.size} transaktioner?`}
+        text="Saldoen rettes tilsvarende. Er der overførsler imellem, slettes begge sider. Handlingen kan ikke fortrydes."
+        confirmLabel="Slet"
+        busy={bulkDelete.isPending}
+        onConfirm={() => bulkDelete.mutate(undefined)}
+      />
 
       <Sheet open={renaming} onClose={() => setRenaming(false)} title="Omdøb konto">
         <div className="space-y-3">
